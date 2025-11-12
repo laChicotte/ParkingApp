@@ -49,20 +49,125 @@ class AccueilView(Frame):
         content_frame = Frame(self, bg=theme.Colors.BG_SECONDARY)
         content_frame.pack(fill="both", expand=True)
         
-        # Colonne gauche - Image et informations
+        # Colonne gauche - Boutons d'action
         left_frame = Frame(content_frame, bg=theme.Colors.BG_SECONDARY)
-        left_frame.pack(side="left", fill="both", expand=True, padx=20)
+        left_frame.pack(side="left", fill="y", padx=20)
+        
+        # État du scan
+        self.encours = Label(
+            left_frame,
+            text="Scan arrêté",
+            font=('Arial', 18, "bold"),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.TEXT_SECONDARY,
+            pady=20
+        )
+        self.encours.pack()
+        
+        # Boutons d'action
+        buttons_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
+        buttons_frame.pack(pady=20)
+        
+        # Charger les icônes
+        self._load_icons()
+        
+        # Bouton Entrée
+        if self.icon_entree:
+            self.entree_btn = Button(
+                buttons_frame,
+                image=self.icon_entree,
+                command=self.start_scanning,
+                relief="flat",
+                bg=theme.Colors.BG_SECONDARY,
+                cursor="hand2",
+                bd=0
+            )
+        else:
+            self.entree_btn = Button(
+                buttons_frame,
+                text="Entrée",
+                command=self.start_scanning,
+                font=("Arial", 14, "bold"),
+                bg=theme.Colors.SUCCESS,
+                fg=theme.Colors.TEXT_LIGHT,
+                relief="flat",
+                cursor="hand2",
+                padx=20,
+                pady=10
+            )
+        self.entree_btn.pack(pady=10)
+        
+        # Bouton Sortie
+        if self.icon_sortie:
+            self.sortie_btn = Button(
+                buttons_frame,
+                image=self.icon_sortie,
+                command=self.action_sortie,
+                relief="flat",
+                bg=theme.Colors.BG_SECONDARY,
+                cursor="hand2",
+                bd=0
+            )
+        else:
+            self.sortie_btn = Button(
+                buttons_frame,
+                text="Sortie",
+                command=self.action_sortie,
+                font=("Arial", 14, "bold"),
+                bg=theme.Colors.WARNING,
+                fg=theme.Colors.TEXT_LIGHT,
+                relief="flat",
+                cursor="hand2",
+                padx=20,
+                pady=10
+            )
+        self.sortie_btn.pack(pady=10)
+        
+        # Bouton Stop
+        if self.icon_stop:
+            self.stop_btn = Button(
+                buttons_frame,
+                image=self.icon_stop,
+                command=self.stop_scanning,
+                state="disabled",
+                relief="flat",
+                bg=theme.Colors.BG_SECONDARY,
+                cursor="hand2",
+                bd=0
+            )
+        else:
+            self.stop_btn = Button(
+                buttons_frame,
+                text="Stop",
+                command=self.stop_scanning,
+                state="disabled",
+                font=("Arial", 14, "bold"),
+                bg=theme.Colors.ERROR,
+                fg=theme.Colors.TEXT_LIGHT,
+                relief="flat",
+                cursor="hand2",
+                padx=20,
+                pady=10
+            )
+        self.stop_btn.pack(pady=10)
+        
+        # Colonne centrale - Image et informations
+        center_frame = Frame(content_frame, bg=theme.Colors.BG_SECONDARY)
+        center_frame.pack(side="left", fill="both", expand=True, padx=20)
         
         # Zone d'image
-        img_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY, relief="solid", bd=2)
+        img_frame = Frame(center_frame, bg=theme.Colors.BG_SECONDARY, relief="solid", bd=2)
         img_frame.pack(pady=20)
         
         try:
-            photo = Image.open(str(paths.PROFIL_PATH))
-            photo.thumbnail((400, 300))
-            photo_tk = ImageTk.PhotoImage(photo)
-            self.lb_img = Label(img_frame, image=photo_tk, bg=theme.Colors.BG_SECONDARY)
-            self.lb_img.image = photo_tk
+            if paths.PROFIL_PATH.exists():
+                photo = Image.open(str(paths.PROFIL_PATH))
+                photo.thumbnail((400, 300))
+                photo_tk = ImageTk.PhotoImage(photo)
+                self.lb_img = Label(img_frame, image=photo_tk, bg=theme.Colors.BG_SECONDARY)
+                self.lb_img.image = photo_tk
+            else:
+                raise FileNotFoundError
         except:
             self.lb_img = Label(
                 img_frame,
@@ -75,7 +180,7 @@ class AccueilView(Frame):
         self.lb_img.pack(padx=10, pady=10)
         
         # Zone de texte pour les détails
-        details_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
+        details_frame = Frame(center_frame, bg=theme.Colors.BG_SECONDARY)
         details_frame.pack(fill="x", pady=10)
         
         self.zone_text = Text(
@@ -92,65 +197,6 @@ class AccueilView(Frame):
         self.zone_text.insert("end", "Nom : \nMatricule : \nMarque : \nPlaque : \nCode : \nTél : \nStatut : ")
         self.zone_text.config(state="disabled")
         
-        # Colonne droite - Boutons d'action
-        right_frame = Frame(content_frame, bg=theme.Colors.BG_SECONDARY)
-        right_frame.pack(side="right", fill="y", padx=20)
-        
-        # État du scan
-        self.encours = Label(
-            right_frame,
-            text="Scan arrêté",
-            font=('Arial', 18, "bold"),
-            bg=theme.Colors.BG_SECONDARY,
-            fg=theme.Colors.TEXT_SECONDARY,
-            pady=20
-        )
-        self.encours.pack()
-        
-        # Boutons d'action
-        buttons_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY)
-        buttons_frame.pack(pady=20)
-        
-        # Charger les icônes
-        self._load_icons()
-        
-        # Bouton Entrée
-        self.entree_btn = Button(
-            buttons_frame,
-            image=self.icon_entree,
-            command=self.start_scanning,
-            relief="flat",
-            bg=theme.Colors.BG_SECONDARY,
-            cursor="hand2",
-            bd=0
-        )
-        self.entree_btn.pack(pady=10)
-        
-        # Bouton Sortie
-        self.sortie_btn = Button(
-            buttons_frame,
-            image=self.icon_sortie,
-            command=self.action_sortie,
-            relief="flat",
-            bg=theme.Colors.BG_SECONDARY,
-            cursor="hand2",
-            bd=0
-        )
-        self.sortie_btn.pack(pady=10)
-        
-        # Bouton Stop
-        self.stop_btn = Button(
-            buttons_frame,
-            image=self.icon_stop,
-            command=self.stop_scanning,
-            state="disabled",
-            relief="flat",
-            bg=theme.Colors.BG_SECONDARY,
-            cursor="hand2",
-            bd=0
-        )
-        self.stop_btn.pack(pady=10)
-        
         # Champ caché pour capturer les entrées du scannage
         self.hidden_entry = ttk.Entry(self, font=("Arial", 12))
         self.hidden_entry.bind("<Return>", self.on_barcode_entry)
@@ -162,17 +208,39 @@ class AccueilView(Frame):
     
     def _load_icons(self):
         """Charge les icônes des boutons"""
-        img_entree = Image.open(str(paths.get_icon_path("enter.jpeg")))
-        img_entree = img_entree.resize((180, 80), Image.Resampling.LANCZOS)
-        self.icon_entree = ImageTk.PhotoImage(img_entree)
+        try:
+            icon_path = paths.get_icon_path("enter.jpeg")
+            if icon_path.exists():
+                img_entree = Image.open(str(icon_path))
+                img_entree = img_entree.resize((180, 80), Image.Resampling.LANCZOS)
+                self.icon_entree = ImageTk.PhotoImage(img_entree)
+            else:
+                raise FileNotFoundError
+        except:
+            # Créer une icône par défaut si l'icône n'existe pas
+            self.icon_entree = None
         
-        img_sortie = Image.open(str(paths.get_icon_path("exit.jpeg")))
-        img_sortie = img_sortie.resize((180, 80), Image.Resampling.LANCZOS)
-        self.icon_sortie = ImageTk.PhotoImage(img_sortie)
+        try:
+            icon_path = paths.get_icon_path("exit.jpeg")
+            if icon_path.exists():
+                img_sortie = Image.open(str(icon_path))
+                img_sortie = img_sortie.resize((180, 80), Image.Resampling.LANCZOS)
+                self.icon_sortie = ImageTk.PhotoImage(img_sortie)
+            else:
+                raise FileNotFoundError
+        except:
+            self.icon_sortie = None
         
-        img_stop = Image.open(str(paths.get_icon_path("stop.png")))
-        img_stop = img_stop.resize((80, 80), Image.Resampling.LANCZOS)
-        self.icon_stop = ImageTk.PhotoImage(img_stop)
+        try:
+            icon_path = paths.get_icon_path("stop.png")
+            if icon_path.exists():
+                img_stop = Image.open(str(icon_path))
+                img_stop = img_stop.resize((80, 80), Image.Resampling.LANCZOS)
+                self.icon_stop = ImageTk.PhotoImage(img_stop)
+            else:
+                raise FileNotFoundError
+        except:
+            self.icon_stop = None
     
     def start_scanning(self):
         """Démarre le scan pour une entrée"""
@@ -262,18 +330,34 @@ class AccueilView(Frame):
     def set_photo(self, photo_nom):
         """Met à jour l'image affichée"""
         try:
-            photo = Image.open(str(paths.get_image_path(photo_nom)))
-            photo.thumbnail((400, 300))
-            photo_tk = ImageTk.PhotoImage(photo)
-            self.lb_img.config(image=photo_tk)
-            self.lb_img.image = photo_tk
-        except FileNotFoundError:
-            try:
-                photo = Image.open(str(paths.PROFIL_PATH))
+            # Essayer d'abord avec le nom de l'image
+            image_path = paths.get_image_path(f"{photo_nom}.png")
+            if not image_path.exists():
+                # Si pas trouvé, essayer sans extension
+                image_path = paths.get_image_path(photo_nom)
+            if image_path.exists():
+                photo = Image.open(str(image_path))
                 photo.thumbnail((400, 300))
                 photo_tk = ImageTk.PhotoImage(photo)
                 self.lb_img.config(image=photo_tk)
                 self.lb_img.image = photo_tk
+            else:
+                # Image par défaut
+                if paths.PROFIL_PATH.exists():
+                    photo = Image.open(str(paths.PROFIL_PATH))
+                    photo.thumbnail((400, 300))
+                    photo_tk = ImageTk.PhotoImage(photo)
+                    self.lb_img.config(image=photo_tk)
+                    self.lb_img.image = photo_tk
+        except Exception as e:
+            # Si erreur, essayer l'image par défaut
+            try:
+                if paths.PROFIL_PATH.exists():
+                    photo = Image.open(str(paths.PROFIL_PATH))
+                    photo.thumbnail((400, 300))
+                    photo_tk = ImageTk.PhotoImage(photo)
+                    self.lb_img.config(image=photo_tk)
+                    self.lb_img.image = photo_tk
             except:
                 pass
 

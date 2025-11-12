@@ -81,7 +81,8 @@ def capture_with_preview(image_name):
             resized_frame = cv2.resize(frame, (722, 712))
             # Chemin de sauvegarde dans le sous-dossier 'images'
             from app.config import paths
-            file_path = str(paths.IMAGES_DIR / f"{image_name}.png")
+            image_path = paths.get_image_path(f"{image_name}.png")
+            file_path = str(image_path)
 
             # Enregistrer l'image
             # cv2.imwrite(file_path, frame)

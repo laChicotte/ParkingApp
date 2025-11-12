@@ -1,7 +1,7 @@
 """
 Fenêtre principale de l'application avec navigation par onglets
 """
-from tkinter import Tk, Frame, Menu, Button
+from tkinter import Tk, Frame, Menu, Button, Label
 from tkinter import ttk
 from app.config import settings, theme, paths
 from app.views.accueil_view import AccueilView
@@ -28,6 +28,9 @@ class MainWindow:
         
         self.root.config(bg=theme.Colors.BG_PRIMARY)
         
+        # Gérer la fermeture de l'application
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
         # Variables - synchronisées avec settings
         self.current_user = settings.current_user
         self.is_connected = settings.is_connected
@@ -42,9 +45,6 @@ class MainWindow:
         
         # Afficher la vue d'accueil par défaut
         self.show_accueil()
-        
-        # Gérer la fermeture
-        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
     
     def _create_menu(self):
         """Crée la barre de menu"""
@@ -68,6 +68,8 @@ class MainWindow:
         # Menu Aide
         help_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Aide", menu=help_menu)
+        help_menu.add_command(label="Guide utilisateur", command=self._show_guide)
+        help_menu.add_separator()
         help_menu.add_command(label="À propos", command=self._show_about)
     
     def _create_main_container(self):
@@ -272,11 +274,102 @@ class MainWindow:
     
     def _show_about(self):
         """Affiche la fenêtre À propos"""
-        from tkinter import messagebox
-        messagebox.showinfo(
-            "À propos",
-            "ParkingApp v1.0.0\n\nApplication de gestion de parking\nDéveloppée avec Python et Tkinter"
+        from tkinter import messagebox, Toplevel, Label, Frame
+        from app.config import theme
+        
+        about_window = Toplevel(self.root)
+        about_window.title("À propos")
+        about_window.geometry("500x400")
+        about_window.config(bg=theme.Colors.BG_SECONDARY)
+        about_window.resizable(False, False)
+        about_window.grab_set()
+        
+        # Centrer la fenêtre
+        about_window.update_idletasks()
+        x = (about_window.winfo_screenwidth() // 2) - (500 // 2)
+        y = (about_window.winfo_screenheight() // 2) - (400 // 2)
+        about_window.geometry(f"500x400+{x}+{y}")
+        
+        # Contenu
+        main_frame = Frame(about_window, bg=theme.Colors.BG_SECONDARY, padx=30, pady=30)
+        main_frame.pack(fill="both", expand=True)
+        
+        # Titre
+        title = Label(
+            main_frame,
+            text="À propos de ParkingApp",
+            font=("Arial", 22, "bold"),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.PRIMARY,
+            pady=20
         )
+        title.pack()
+        
+        # Version
+        version = Label(
+            main_frame,
+            text="Version 1.0.0",
+            font=("Arial", 12),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.TEXT_SECONDARY,
+            pady=10
+        )
+        version.pack()
+        
+        # Description
+        description = Label(
+            main_frame,
+            text="Application de gestion de parking\npour l'Université Kofi Annan de Guinée",
+            font=("Arial", 12),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.TEXT_PRIMARY,
+            justify="center",
+            pady=20
+        )
+        description.pack()
+        
+        # Développeur
+        developer = Label(
+            main_frame,
+            text="Développé par :\nElhadj Ibrahima Barry",
+            font=("Arial", 11, "bold"),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.PRIMARY,
+            justify="center",
+            pady=10
+        )
+        developer.pack()
+        
+        # Technologies
+        tech = Label(
+            main_frame,
+            text="Technologies :\nPython • Tkinter • SQLite",
+            font=("Arial", 10),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.TEXT_SECONDARY,
+            justify="center",
+            pady=20
+        )
+        tech.pack()
+        
+        # Bouton fermer
+        close_btn = Button(
+            main_frame,
+            text="Fermer",
+            command=about_window.destroy,
+            font=("Arial", 11, "bold"),
+            bg=theme.Colors.PRIMARY,
+            fg=theme.Colors.TEXT_LIGHT,
+            activebackground=theme.Colors.PRIMARY_LIGHT,
+            activeforeground=theme.Colors.TEXT_LIGHT,
+            relief="flat",
+            cursor="hand2",
+            padx=30,
+            pady=10
+        )
+        close_btn.pack(pady=10)
+        close_btn.bind("<Enter>", lambda e: close_btn.config(bg=theme.Colors.PRIMARY_LIGHT))
+        close_btn.bind("<Leave>", lambda e: close_btn.config(bg=theme.Colors.PRIMARY))
     
     def _update_status(self, message):
         """Met à jour le message de statut"""
@@ -285,8 +378,180 @@ class MainWindow:
     def _on_closing(self):
         """Gère la fermeture de l'application"""
         from tkinter import messagebox
-        if messagebox.askyesno("Quitter", "Voulez-vous vraiment quitter l'application ?"):
+        
+        # Demander confirmation
+        if messagebox.askokcancel("Quitter", "Voulez-vous vraiment quitter l'application ?"):
+            # Nettoyage si nécessaire
+            self._cleanup()
+            # Fermer l'application
             self.root.destroy()
+            self.root.quit()
+    
+    def _cleanup(self):
+        """Nettoie les ressources avant la fermeture"""
+        # Fermer les connexions à la base de données si nécessaire
+        try:
+            # Les connexions SQLite se ferment automatiquement
+            # Mais on peut ajouter du nettoyage ici si nécessaire
+            pass
+        except Exception as e:
+            print(f"Erreur lors du nettoyage: {e}")
+    
+    def _show_guide(self):
+        """Affiche le guide utilisateur"""
+        from tkinter import Toplevel, Label, Frame, Text, Scrollbar
+        from app.config import theme
+        
+        guide_window = Toplevel(self.root)
+        guide_window.title("Guide utilisateur")
+        guide_window.geometry("700x600")
+        guide_window.config(bg=theme.Colors.BG_SECONDARY)
+        guide_window.resizable(True, True)
+        guide_window.grab_set()
+        
+        # Centrer la fenêtre
+        guide_window.update_idletasks()
+        x = (guide_window.winfo_screenwidth() // 2) - (700 // 2)
+        y = (guide_window.winfo_screenheight() // 2) - (600 // 2)
+        guide_window.geometry(f"700x600+{x}+{y}")
+        
+        # Contenu
+        main_frame = Frame(guide_window, bg=theme.Colors.BG_SECONDARY, padx=20, pady=20)
+        main_frame.pack(fill="both", expand=True)
+        
+        # Titre
+        title = Label(
+            main_frame,
+            text="Guide utilisateur - ParkingApp",
+            font=("Arial", 20, "bold"),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.PRIMARY,
+            pady=15
+        )
+        title.pack()
+        
+        # Zone de texte avec scrollbar
+        text_frame = Frame(main_frame, bg=theme.Colors.BG_SECONDARY)
+        text_frame.pack(fill="both", expand=True, pady=10)
+        
+        scrollbar = Scrollbar(text_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        guide_text = Text(
+            text_frame,
+            font=("Arial", 11),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.TEXT_PRIMARY,
+            wrap="word",
+            yscrollcommand=scrollbar.set,
+            padx=15,
+            pady=15,
+            relief="flat",
+            bd=0
+        )
+        guide_text.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=guide_text.yview)
+        
+        # Contenu du guide
+        guide_content = """
+═══════════════════════════════════════════════════════════════
+                    GUIDE UTILISATEUR - PARKINGAPP
+═══════════════════════════════════════════════════════════════
+
+1. CONNEXION
+───────────────────────────────────────────────────────────────
+• Cliquez sur le bouton "🔐 Connexion" dans le menu latéral
+• Entrez votre nom d'utilisateur et mot de passe
+• Par défaut : admin / admin (pour SQLite)
+
+2. ACCUEIL - Gestion des entrées/sorties
+───────────────────────────────────────────────────────────────
+• Cliquez sur "🏠 Accueil" dans le menu
+• Bouton "Entrée" : Enregistrer l'entrée d'une moto
+• Bouton "Sortie" : Enregistrer la sortie d'une moto
+• Scannez le code-barres ou entrez-le manuellement
+• Les informations du propriétaire s'affichent automatiquement
+
+3. DASHBOARD - Statistiques
+───────────────────────────────────────────────────────────────
+• Cliquez sur "📊 Dashboard" dans le menu
+• Visualisez les statistiques globales :
+  - Nombre total de motos
+  - Motos présentes dans le parking
+  - Motos absentes
+  - Graphiques d'évolution
+
+4. HISTORIQUE
+───────────────────────────────────────────────────────────────
+• Cliquez sur "📜 Historique" dans le menu
+• Consultez l'historique de toutes les entrées/sorties
+• Recherchez par date, nom, plaque, etc.
+• Exportez les données si nécessaire
+
+5. GESTION DES MOTOS
+───────────────────────────────────────────────────────────────
+• Cliquez sur "🏍️ Motos" dans le menu
+• Ajouter : Enregistrer un nouveau propriétaire de moto
+• Modifier : Modifier les informations d'un propriétaire
+• Supprimer : Supprimer un propriétaire
+• Rechercher : Rechercher par nom, plaque, code-barres
+• Exporter : Exporter la liste en HTML
+• Changer photo : Prendre une photo avec la webcam
+
+6. GESTION DES UTILISATEURS (Admin uniquement)
+───────────────────────────────────────────────────────────────
+• Cliquez sur "👥 Utilisateurs" dans le menu
+• Réservé aux administrateurs
+• Ajouter : Créer un nouvel utilisateur
+• Modifier : Modifier les informations d'un utilisateur
+• Supprimer : Supprimer un utilisateur
+• Définir les rôles : Administrateur ou Utilisateur
+
+7. NAVIGATION
+───────────────────────────────────────────────────────────────
+• Utilisez le menu latéral pour naviguer entre les sections
+• Le menu supérieur offre des raccourcis supplémentaires
+• La barre de statut en bas affiche les informations actuelles
+
+8. CONSEILS
+───────────────────────────────────────────────────────────────
+• Sauvegardez régulièrement vos données
+• Utilisez des codes-barres uniques pour chaque moto
+• Vérifiez les informations avant de valider une entrée/sortie
+• Déconnectez-vous après utilisation pour la sécurité
+
+9. SUPPORT
+───────────────────────────────────────────────────────────────
+• Pour toute question ou problème, contactez :
+  Développeur : Elhadj Ibrahima Barry
+  Université : Kofi Annan de Guinée
+
+═══════════════════════════════════════════════════════════════
+                        Bonne utilisation !
+═══════════════════════════════════════════════════════════════
+"""
+        
+        guide_text.insert("1.0", guide_content)
+        guide_text.config(state="disabled")  # Lecture seule
+        
+        # Bouton fermer
+        close_btn = Button(
+            main_frame,
+            text="Fermer",
+            command=guide_window.destroy,
+            font=("Arial", 11, "bold"),
+            bg=theme.Colors.PRIMARY,
+            fg=theme.Colors.TEXT_LIGHT,
+            activebackground=theme.Colors.PRIMARY_LIGHT,
+            activeforeground=theme.Colors.TEXT_LIGHT,
+            relief="flat",
+            cursor="hand2",
+            padx=30,
+            pady=10
+        )
+        close_btn.pack(pady=15)
+        close_btn.bind("<Enter>", lambda e: close_btn.config(bg=theme.Colors.PRIMARY_LIGHT))
+        close_btn.bind("<Leave>", lambda e: close_btn.config(bg=theme.Colors.PRIMARY))
     
     def run(self):
         """Lance l'application"""

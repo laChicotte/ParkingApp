@@ -1,6 +1,11 @@
 """
 Point d'entrée principal de l'application ParkingApp
 """
+import os
+
+# Supprimer l'avertissement Qt/Wayland d'OpenCV
+os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = ''
+
 from app.core.main_window import MainWindow
 from app.config import paths
 

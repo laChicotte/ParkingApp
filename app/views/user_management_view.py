@@ -110,11 +110,14 @@ class UserManagementView(Frame):
         img_frame.pack(pady=20)
         
         try:
-            img = Image.open(str(paths.PROFIL_PATH))
-            img = img.resize((200, 200), Image.Resampling.LANCZOS)
-            photo_tk = ImageTk.PhotoImage(img)
-            self.image_label = Label(img_frame, image=photo_tk, bg=theme.Colors.BG_SECONDARY)
-            self.image_label.image = photo_tk
+            if paths.PROFIL_PATH.exists():
+                img = Image.open(str(paths.PROFIL_PATH))
+                img = img.resize((200, 200), Image.Resampling.LANCZOS)
+                photo_tk = ImageTk.PhotoImage(img)
+                self.image_label = Label(img_frame, image=photo_tk, bg=theme.Colors.BG_SECONDARY)
+                self.image_label.image = photo_tk
+            else:
+                raise FileNotFoundError
         except:
             self.image_label = Label(
                 img_frame,
@@ -155,19 +158,30 @@ class UserManagementView(Frame):
         
         # Charger l'image
         try:
-            image_path = str(paths.get_image_path(f"{telephone}.png"))
-            img = Image.open(image_path)
-            img = img.resize((200, 200), Image.Resampling.LANCZOS)
-            photo = ImageTk.PhotoImage(img)
-            self.image_label.config(image=photo)
-            self.image_label.image = photo
-        except:
-            try:
-                img = Image.open(str(paths.PROFIL_PATH))
+            image_path = paths.get_image_path(f"{telephone}.png")
+            if image_path.exists():
+                img = Image.open(str(image_path))
                 img = img.resize((200, 200), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
                 self.image_label.config(image=photo)
                 self.image_label.image = photo
+            else:
+                # Image par défaut
+                if paths.PROFIL_PATH.exists():
+                    img = Image.open(str(paths.PROFIL_PATH))
+                    img = img.resize((200, 200), Image.Resampling.LANCZOS)
+                    photo = ImageTk.PhotoImage(img)
+                    self.image_label.config(image=photo)
+                    self.image_label.image = photo
+        except Exception as e:
+            # Si erreur, essayer l'image par défaut
+            try:
+                if paths.PROFIL_PATH.exists():
+                    img = Image.open(str(paths.PROFIL_PATH))
+                    img = img.resize((200, 200), Image.Resampling.LANCZOS)
+                    photo = ImageTk.PhotoImage(img)
+                    self.image_label.config(image=photo)
+                    self.image_label.image = photo
             except:
                 pass
     
@@ -216,7 +230,7 @@ class UserManagementView(Frame):
         dialog.geometry("600x700")
         dialog.config(bg=theme.Colors.BG_SECONDARY)
         dialog.grab_set()
-        dialog.resizable(False, False)
+        dialog.resizable(True, True)
         
         # Centrer
         dialog.update_idletasks()

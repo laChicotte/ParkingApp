@@ -99,11 +99,14 @@ class HistoriqueView(Frame):
         img_frame.pack(pady=10)
         
         try:
-            img = Image.open(str(paths.PROFIL_PATH))
-            img.thumbnail((200, 200))
-            photo_tk = ImageTk.PhotoImage(img)
-            self.lb_img = Label(img_frame, image=photo_tk, bg=theme.Colors.BG_SECONDARY)
-            self.lb_img.image = photo_tk
+            if paths.PROFIL_PATH.exists():
+                img = Image.open(str(paths.PROFIL_PATH))
+                img.thumbnail((200, 200))
+                photo_tk = ImageTk.PhotoImage(img)
+                self.lb_img = Label(img_frame, image=photo_tk, bg=theme.Colors.BG_SECONDARY)
+                self.lb_img.image = photo_tk
+            else:
+                raise FileNotFoundError
         except:
             self.lb_img = Label(
                 img_frame,
@@ -185,12 +188,30 @@ class HistoriqueView(Frame):
         
         # Charger l'image
         try:
-            code = values[2]
-            path = str(paths.get_image_path(f"{code}.png"))
-            img = Image.open(path)
-            img.thumbnail((200, 200))
-            photo_tk = ImageTk.PhotoImage(img)
-            self.lb_img.config(image=photo_tk)
-            self.lb_img.image = photo_tk
-        except:
-            pass
+            code = str(values[2]).zfill(6)  # S'assurer que le code a 6 chiffres
+            image_path = paths.get_image_path(f"{code}.png")
+            if image_path.exists():
+                img = Image.open(str(image_path))
+                img.thumbnail((200, 200))
+                photo_tk = ImageTk.PhotoImage(img)
+                self.lb_img.config(image=photo_tk)
+                self.lb_img.image = photo_tk
+            else:
+                # Image par défaut
+                if paths.PROFIL_PATH.exists():
+                    img = Image.open(str(paths.PROFIL_PATH))
+                    img.thumbnail((200, 200))
+                    photo_tk = ImageTk.PhotoImage(img)
+                    self.lb_img.config(image=photo_tk)
+                    self.lb_img.image = photo_tk
+        except Exception as e:
+            # Si erreur, essayer l'image par défaut
+            try:
+                if paths.PROFIL_PATH.exists():
+                    img = Image.open(str(paths.PROFIL_PATH))
+                    img.thumbnail((200, 200))
+                    photo_tk = ImageTk.PhotoImage(img)
+                    self.lb_img.config(image=photo_tk)
+                    self.lb_img.image = photo_tk
+            except:
+                pass

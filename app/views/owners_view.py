@@ -8,6 +8,7 @@ from app.database.sqlite import Bdonnee
 from app.config import theme, paths
 from app.utils.fonctions import convertir_caracteres_en_chiffres, capture_with_preview
 import webbrowser
+import os
 
 
 class OwnersView(Frame):
@@ -139,11 +140,14 @@ class OwnersView(Frame):
         img_frame.pack(pady=10)
         
         try:
-            img = Image.open(str(paths.PROFIL_PATH))
-            img.thumbnail((200, 200))
-            photo_tk = ImageTk.PhotoImage(img)
-            self.lb_img = Label(img_frame, image=photo_tk, bg=theme.Colors.BG_SECONDARY)
-            self.lb_img.image = photo_tk
+            if paths.PROFIL_PATH.exists():
+                img = Image.open(str(paths.PROFIL_PATH))
+                img.thumbnail((200, 200))
+                photo_tk = ImageTk.PhotoImage(img)
+                self.lb_img = Label(img_frame, image=photo_tk, bg=theme.Colors.BG_SECONDARY)
+                self.lb_img.image = photo_tk
+            else:
+                raise FileNotFoundError
         except:
             self.lb_img = Label(
                 img_frame,
@@ -222,15 +226,37 @@ class OwnersView(Frame):
         
         # Charger l'image
         try:
-            code = values[3]
-            path = str(paths.get_image_path(f"{code}.png"))
-            img = Image.open(path)
-            img.thumbnail((200, 200))
-            photo_tk = ImageTk.PhotoImage(img)
-            self.lb_img.config(image=photo_tk)
-            self.lb_img.image = photo_tk
-        except:
-            pass
+            code = str(values[3]).zfill(6)  # S'assurer que le code a 6 chiffres
+            image_path = paths.get_image_path(f"{code}.png")
+            # Utiliser le chemin relatif depuis le projet
+            path = str(image_path)
+            if image_path.exists():
+                img = Image.open(path)
+                img.thumbnail((200, 200))
+                photo_tk = ImageTk.PhotoImage(img)
+                self.lb_img.config(image=photo_tk)
+                self.lb_img.image = photo_tk
+            else:
+                # Si l'image n'existe pas, utiliser l'image par défaut
+                default_path = paths.PROFIL_PATH
+                if default_path.exists():
+                    img = Image.open(str(default_path))
+                    img.thumbnail((200, 200))
+                    photo_tk = ImageTk.PhotoImage(img)
+                    self.lb_img.config(image=photo_tk)
+                    self.lb_img.image = photo_tk
+        except Exception as e:
+            # En cas d'erreur, essayer l'image par défaut
+            try:
+                default_path = paths.PROFIL_PATH
+                if default_path.exists():
+                    img = Image.open(str(default_path))
+                    img.thumbnail((200, 200))
+                    photo_tk = ImageTk.PhotoImage(img)
+                    self.lb_img.config(image=photo_tk)
+                    self.lb_img.image = photo_tk
+            except:
+                pass
     
     def add_owner(self):
         """Affiche le formulaire d'ajout"""
@@ -365,16 +391,16 @@ class OwnersView(Frame):
         """Affiche le formulaire d'ajout/modification"""
         dialog = Toplevel(self)
         dialog.title("Ajouter un Propriétaire" if not owner_id else "Modifier un Propriétaire")
-        dialog.geometry("800x700")
+        dialog.geometry("600x700")
         dialog.config(bg=theme.Colors.BG_SECONDARY)
         dialog.grab_set()
-        dialog.resizable(False, False)
+        dialog.resizable(True, True)
         
         # Centrer la fenêtre
         dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (800 // 2)
+        x = (dialog.winfo_screenwidth() // 2) - (600 // 2)
         y = (dialog.winfo_screenheight() // 2) - (700 // 2)
-        dialog.geometry(f"800x700+{x}+{y}")
+        dialog.geometry(f"600x700+{x}+{y}")
         
         # Récupérer les données si modification
         owner_data = None
