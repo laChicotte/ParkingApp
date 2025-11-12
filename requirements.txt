@@ -1,0 +1,17 @@
+# Dépendances pour l'application ParkingApp
+
+# Base de données MySQL/MariaDB
+pymysql>=1.1.0
+
+# Hachage de mots de passe
+bcrypt>=4.0.0
+
+# Traitement d'images
+Pillow>=10.0.0
+
+# Graphiques et visualisation
+matplotlib>=3.7.0
+
+# Capture vidéo/webcam
+opencv-python>=4.8.0
+

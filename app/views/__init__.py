@@ -1,0 +1,2 @@
+"""Vues et interfaces utilisateur"""
+
