@@ -150,5 +150,21 @@ sudo apt install python3-tk
 
 ## 📄 Licence
 
-Ce projet est un projet éducatif.
+Ce projet est sous licence **MIT - Educational and Research Use Only**.
+
+**Utilisation autorisée :**
+- ✅ Apprentissage et enseignement
+- ✅ Recherche académique
+- ✅ Étude personnelle et expérimentation
+- ✅ Examen du code à des fins éducatives
+
+**Utilisation interdite :**
+- ❌ Vente ou location du logiciel
+- ❌ Utilisation dans des produits ou services commerciaux
+- ❌ Toute utilisation à but lucratif
+
+Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+**Développeur :** Elhadj Ibrahima Barry  
+**Institution :** Université Kofi Annan de Guinée
 
