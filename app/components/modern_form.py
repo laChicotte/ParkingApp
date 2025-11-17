@@ -3,6 +3,7 @@ Composants de formulaire modernisés et réutilisables
 """
 from tkinter import Frame, Label, Entry, Button, StringVar, OptionMenu, Canvas
 from tkinter import ttk
+from tkinter import TclError
 from app.config import theme
 
 
@@ -120,17 +121,17 @@ class ModernForm:
         main_container.pack(fill="both", expand=True)
         
         # Canvas pour le scroll
-        canvas = Canvas(main_container, bg=theme.Colors.BG_SECONDARY, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
-        scrollable_frame = Frame(canvas, bg=theme.Colors.BG_SECONDARY)
+        self.canvas = Canvas(main_container, bg=theme.Colors.BG_SECONDARY, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=self.canvas.yview)
+        scrollable_frame = Frame(self.canvas, bg=theme.Colors.BG_SECONDARY)
         
         scrollable_frame.bind(
             "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
         
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
         
         # Frame principal du formulaire
         self.form_frame = Frame(scrollable_frame, bg=theme.Colors.BG_SECONDARY, padx=30, pady=20)
@@ -209,24 +210,37 @@ class ModernForm:
         cancel_btn.bind("<Leave>", lambda e: cancel_btn.config(bg=theme.Colors.BTN_DANGER))
         
         # Pack canvas et scrollbar
-        canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
         # Bind mousewheel pour Linux et Windows
         def _on_mousewheel(event):
             try:
                 # Windows
-                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-            except:
+                if hasattr(event, 'delta'):
+                    self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
                 # Linux
-                if event.num == 4:
-                    canvas.yview_scroll(-1, "units")
-                elif event.num == 5:
-                    canvas.yview_scroll(1, "units")
+                elif hasattr(event, 'num'):
+                    if event.num == 4:
+                        self.canvas.yview_scroll(-1, "units")
+                    elif event.num == 5:
+                        self.canvas.yview_scroll(1, "units")
+            except (TclError, AttributeError):
+                # Ignorer les erreurs si le widget a été détruit
+                # TclError se produit quand le widget n'existe plus
+                pass
         
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        canvas.bind_all("<Button-4>", _on_mousewheel)
-        canvas.bind_all("<Button-5>", _on_mousewheel)
+        # Utiliser bind au lieu de bind_all pour limiter la portée
+        # et lier uniquement aux widgets enfants du canvas
+        def bind_to_canvas_and_children(widget):
+            widget.bind("<MouseWheel>", _on_mousewheel)
+            widget.bind("<Button-4>", _on_mousewheel)
+            widget.bind("<Button-5>", _on_mousewheel)
+            for child in widget.winfo_children():
+                bind_to_canvas_and_children(child)
+        
+        bind_to_canvas_and_children(self.canvas)
+        bind_to_canvas_and_children(scrollable_frame)
     
     def _on_submit(self):
         """Gère la soumission du formulaire"""
