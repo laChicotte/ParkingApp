@@ -12,6 +12,9 @@ Pillow>=10.0.0
 # Graphiques et visualisation
 matplotlib>=3.7.0
 
-# Capture vidéo/webcam
+# Capture vidéo/webcam et détection QR codes
 opencv-python>=4.8.0
+
+# Détection codes-barres 1D (optionnel — nécessite aussi: sudo apt install libzbar0)
+pyzbar>=0.1.9
 

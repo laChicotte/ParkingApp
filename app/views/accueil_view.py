@@ -6,7 +6,7 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 from app.database.sqlite import Bdonnee
 from app.config import settings, theme, paths
-from app.utils.fonctions import today, convertir_caracteres_en_chiffres
+from app.utils.fonctions import today, convertir_caracteres_en_chiffres, scan_qr_camera
 
 
 class AccueilView(Frame):
@@ -150,7 +150,49 @@ class AccueilView(Frame):
                 pady=10
             )
         self.stop_btn.pack(pady=10)
-        
+
+        # Séparateur caméra
+        Frame(left_frame, bg=theme.Colors.BORDER, height=1).pack(fill="x", pady=10)
+
+        Label(
+            left_frame,
+            text="Scan caméra",
+            font=("Arial", 11),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.TEXT_SECONDARY
+        ).pack()
+
+        cam_buttons_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
+        cam_buttons_frame.pack(pady=8)
+
+        Button(
+            cam_buttons_frame,
+            text="📷 Entrée Cam",
+            command=self._camera_scan_entry,
+            font=("Arial", 11, "bold"),
+            bg=theme.Colors.SUCCESS,
+            fg=theme.Colors.TEXT_LIGHT,
+            activebackground="#66bb6a",
+            relief="flat",
+            cursor="hand2",
+            padx=12,
+            pady=7
+        ).pack(pady=4, fill="x")
+
+        Button(
+            cam_buttons_frame,
+            text="📷 Sortie Cam",
+            command=self._camera_scan_exit,
+            font=("Arial", 11, "bold"),
+            bg=theme.Colors.WARNING,
+            fg=theme.Colors.TEXT_LIGHT,
+            activebackground="#ffa726",
+            relief="flat",
+            cursor="hand2",
+            padx=12,
+            pady=7
+        ).pack(pady=4, fill="x")
+
         # Colonne centrale - Image et informations
         center_frame = Frame(content_frame, bg=theme.Colors.BG_SECONDARY)
         center_frame.pack(side="left", fill="both", expand=True, padx=20)
@@ -244,57 +286,45 @@ class AccueilView(Frame):
     
     def start_scanning(self):
         """Démarre le scan pour une entrée"""
-        if not settings.is_connected or not settings.current_user.has_permission("scan_entries"):
-            messagebox.showwarning("Alerte", "Vous n'avez pas les permissions nécessaires")
-            return
-        
         self.scanning = True
         self.encours.config(text="Entrée en cours...", fg=theme.Colors.SUCCESS)
         self.entree_btn.config(state="disabled")
         self.sortie_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
-        messagebox.showinfo("Info", "Le scannage a démarré. Scannez un code-barres.")
-        self.hidden_entry.focus_set()
+        self.after(100, self.hidden_entry.focus_set)
     
     def stop_scanning(self):
         """Arrête le scan"""
-        self.encours.config(text="Scan arrêté", fg=theme.Colors.TEXT_SECONDARY)
         self.scanning = False
+        self.encours.config(text="Scan arrêté", fg=theme.Colors.TEXT_SECONDARY)
         self.entree_btn.config(state="normal")
         self.sortie_btn.config(state="normal")
         self.stop_btn.config(state="disabled")
         self.hidden_entry.delete(0, "end")
-        messagebox.showinfo("Info", "Le scannage a été arrêté.")
+        self.hidden_entry1.delete(0, "end")
     
     def action_sortie(self):
         """Démarre le scan pour une sortie"""
-        if not settings.is_connected or not settings.current_user.has_permission("scan_exits"):
-            messagebox.showwarning("Alerte", "Vous n'avez pas les permissions nécessaires")
-            return
-        
-        self.encours.config(text="Sortie en cours...", fg=theme.Colors.WARNING)
         self.scanning = True
+        self.encours.config(text="Sortie en cours...", fg=theme.Colors.WARNING)
         self.entree_btn.config(state="disabled")
         self.sortie_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
-        messagebox.showinfo("Info", "Le scannage a démarré. Scannez un code-barres.")
-        self.hidden_entry1.focus_set()
+        self.after(100, self.hidden_entry1.focus_set)
     
     def on_barcode_entry(self, event):
         """Gère la saisie d'un code-barre pour entrée"""
-        if self.scanning:
-            barcode = self.hidden_entry.get()
-            if barcode:
-                self.scan_display(barcode, True)
-                self.hidden_entry.delete(0, "end")
-    
+        barcode = self.hidden_entry.get()
+        if barcode:
+            self.scan_display(barcode, True)
+            self.hidden_entry.delete(0, "end")
+
     def on_barcode_exit(self, event):
         """Gère la saisie d'un code-barre pour sortie"""
-        if self.scanning:
-            barcode = self.hidden_entry1.get()
-            if barcode:
-                self.scan_display(barcode, False)
-                self.hidden_entry1.delete(0, "end")
+        barcode = self.hidden_entry1.get()
+        if barcode:
+            self.scan_display(barcode, False)
+            self.hidden_entry1.delete(0, "end")
     
     def scan_display(self, scanned_code, is_entry):
         """Affiche les informations du code-barre scanné"""
@@ -325,8 +355,25 @@ class AccueilView(Frame):
             else:
                 messagebox.showinfo("Succès", f"{etat} enregistrée avec succès.")
         else:
-            messagebox.showwarning("Non trouvé", "Aucune donnée trouvée pour ce code-barre.")
+            messagebox.showwarning(
+                "Non trouvé",
+                f"Aucune donnée trouvée pour ce code-barre.\n\n"
+                f"Code lu        : {scanned_code}\n"
+                f"Code converti  : {converted_code}"
+            )
     
+    def _camera_scan_entry(self):
+        """Lance le scan caméra pour une entrée"""
+        self.encours.config(text="Scan caméra Entrée...", fg=theme.Colors.SUCCESS)
+        scan_qr_camera(lambda code: self.scan_display(code, True))
+        self.encours.config(text="Scan arrêté", fg=theme.Colors.TEXT_SECONDARY)
+
+    def _camera_scan_exit(self):
+        """Lance le scan caméra pour une sortie"""
+        self.encours.config(text="Scan caméra Sortie...", fg=theme.Colors.WARNING)
+        scan_qr_camera(lambda code: self.scan_display(code, False))
+        self.encours.config(text="Scan arrêté", fg=theme.Colors.TEXT_SECONDARY)
+
     def set_photo(self, photo_nom):
         """Met à jour l'image affichée"""
         try:

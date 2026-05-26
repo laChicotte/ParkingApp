@@ -3,32 +3,52 @@ Composants de formulaire modernisés et réutilisables
 """
 from tkinter import Frame, Label, Entry, Button, StringVar, OptionMenu, Canvas
 from tkinter import ttk
-from tkinter import TclError
 from app.config import theme
 
 
 class ModernFormField:
-    """Champ de formulaire modernisé"""
-    
-    def __init__(self, parent, label_text, field_type="entry", options=None, default_value=""):
+    """Champ de formulaire avec validation inline et placeholder"""
+
+    _PLACEHOLDER_COLOR = "#aaaaaa"
+
+    def __init__(self, parent, label_text, field_type="entry", options=None,
+                 default_value="", required=False, placeholder=""):
+        self.required = required
+        self.field_type = field_type
+        self._placeholder = placeholder
+        self._showing_placeholder = False
+
         self.frame = Frame(parent, bg=theme.Colors.BG_SECONDARY)
-        self.frame.pack(fill="x", pady=8)
-        
-        # Label
-        self.label = Label(
-            self.frame,
+        self.frame.pack(fill="x", pady=6)
+
+        # Ligne label (texte + astérisque rouge si requis)
+        label_row = Frame(self.frame, bg=theme.Colors.BG_SECONDARY)
+        label_row.pack(fill="x", pady=(0, 3))
+
+        Label(
+            label_row,
             text=label_text,
             font=("Arial", 11, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_PRIMARY,
             anchor="w"
-        )
-        self.label.pack(fill="x", pady=(0, 5))
-        
-        # Champ selon le type
-        if field_type == "entry":
+        ).pack(side="left")
+
+        if required:
+            Label(
+                label_row,
+                text=" *",
+                font=("Arial", 11, "bold"),
+                bg=theme.Colors.BG_SECONDARY,
+                fg=theme.Colors.ERROR,
+            ).pack(side="left")
+
+        # Widget selon le type
+        if field_type in ("entry", "password"):
+            show = "*" if field_type == "password" else ""
             self.entry = Entry(
                 self.frame,
+                show=show,
                 font=("Arial", 13),
                 bg="#ffffff",
                 fg=theme.Colors.TEXT_PRIMARY,
@@ -40,42 +60,26 @@ class ModernFormField:
                 insertbackground=theme.Colors.TEXT_PRIMARY
             )
             self.entry.pack(fill="x", ipady=10, padx=2)
+
             if default_value:
                 self.entry.insert(0, str(default_value))
+            elif placeholder and field_type == "entry":
+                self._set_placeholder()
+
+            if field_type == "entry":
+                self.entry.bind("<FocusIn>", self._on_focus_in)
+                self.entry.bind("<FocusOut>", self._on_focus_out)
+
             self.widget = self.entry
-        elif field_type == "password":
-            self.entry = Entry(
-                self.frame,
-                show="*",
-                font=("Arial", 13),
-                bg="#ffffff",
-                fg=theme.Colors.TEXT_PRIMARY,
-                relief="solid",
-                bd=2,
-                highlightthickness=1,
-                highlightbackground=theme.Colors.BORDER,
-                highlightcolor=theme.Colors.PRIMARY,
-                insertbackground=theme.Colors.TEXT_PRIMARY
-            )
-            self.entry.pack(fill="x", ipady=10, padx=2)
-            if default_value:
-                self.entry.insert(0, str(default_value))
-            self.widget = self.entry
+
         elif field_type == "option":
             self.var = StringVar()
             if default_value:
                 self.var.set(str(default_value))
             else:
                 self.var.set(options[0] if options else "")
-            
-            option_frame = Frame(self.frame, bg=theme.Colors.BG_SECONDARY)
-            option_frame.pack(fill="x")
-            
-            self.option = OptionMenu(
-                option_frame,
-                self.var,
-                *options
-            )
+
+            self.option = OptionMenu(self.frame, self.var, *options)
             self.option.config(
                 font=("Arial", 12),
                 bg="#ffffff",
@@ -88,20 +92,69 @@ class ModernFormField:
                 highlightbackground=theme.Colors.BORDER,
                 highlightcolor=theme.Colors.PRIMARY
             )
-            self.option.pack(fill="x", ipady=10, padx=2)
+            self.option.pack(fill="x", ipady=8, padx=2)
             self.widget = self.var
-    
+
+        # Label d'erreur inline (vide par défaut)
+        self.error_label = Label(
+            self.frame,
+            text="",
+            font=("Arial", 9),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.ERROR,
+            anchor="w"
+        )
+        self.error_label.pack(fill="x", padx=4)
+
+    # --- Placeholder ---
+
+    def _set_placeholder(self):
+        self._showing_placeholder = True
+        self.entry.config(fg=self._PLACEHOLDER_COLOR)
+        self.entry.insert(0, self._placeholder)
+
+    def _on_focus_in(self, event):
+        if self._showing_placeholder:
+            self.entry.delete(0, "end")
+            self.entry.config(fg=theme.Colors.TEXT_PRIMARY)
+            self._showing_placeholder = False
+
+    def _on_focus_out(self, event):
+        if not self.entry.get() and self._placeholder:
+            self._set_placeholder()
+
+    # --- Validation ---
+
+    def show_error(self, message):
+        self.error_label.config(text=message)
+        if hasattr(self, "entry"):
+            self.entry.config(
+                highlightbackground=theme.Colors.ERROR,
+                highlightcolor=theme.Colors.ERROR
+            )
+
+    def clear_error(self):
+        self.error_label.config(text="")
+        if hasattr(self, "entry"):
+            self.entry.config(
+                highlightbackground=theme.Colors.BORDER,
+                highlightcolor=theme.Colors.PRIMARY
+            )
+
+    # --- Accesseurs ---
+
     def get_value(self):
-        """Retourne la valeur du champ"""
         if isinstance(self.widget, Entry):
-            return self.widget.get()
+            return "" if self._showing_placeholder else self.widget.get()
         elif isinstance(self.widget, StringVar):
             return self.widget.get()
         return ""
-    
+
     def set_value(self, value):
-        """Définit la valeur du champ"""
         if isinstance(self.widget, Entry):
+            if self._showing_placeholder:
+                self.widget.config(fg=theme.Colors.TEXT_PRIMARY)
+                self._showing_placeholder = False
             self.widget.delete(0, "end")
             self.widget.insert(0, str(value))
         elif isinstance(self.widget, StringVar):
@@ -109,68 +162,69 @@ class ModernFormField:
 
 
 class ModernForm:
-    """Formulaire modernisé avec validation"""
-    
-    def __init__(self, parent, title, fields_config, submit_text="Enregistrer", submit_command=None):
+    """Formulaire modernisé avec validation inline des champs obligatoires"""
+
+    def __init__(self, parent, title, fields_config,
+                 submit_text="Enregistrer", submit_command=None):
         self.parent = parent
         self.fields = {}
         self.submit_command = submit_command
-        
-        # Frame principal avec scrollbar
+
+        # Conteneur principal avec scrollbar
         main_container = Frame(parent, bg=theme.Colors.BG_SECONDARY)
         main_container.pack(fill="both", expand=True)
-        
-        # Canvas pour le scroll
-        self.canvas = Canvas(main_container, bg=theme.Colors.BG_SECONDARY, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=self.canvas.yview)
-        scrollable_frame = Frame(self.canvas, bg=theme.Colors.BG_SECONDARY)
-        
+
+        canvas = Canvas(main_container, bg=theme.Colors.BG_SECONDARY, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = Frame(canvas, bg=theme.Colors.BG_SECONDARY)
+
         scrollable_frame.bind(
             "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
-        
-        self.canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Frame principal du formulaire
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
         self.form_frame = Frame(scrollable_frame, bg=theme.Colors.BG_SECONDARY, padx=30, pady=20)
         self.form_frame.pack(fill="both", expand=True)
-        
+
         # Titre
-        title_label = Label(
+        Label(
             self.form_frame,
             text=title,
-            font=("Arial", 22, "bold"),
+            font=("Arial", 20, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY,
-            pady=20
-        )
-        title_label.pack()
-        
+            pady=12
+        ).pack()
+
+        # Séparateur
+        Frame(self.form_frame, bg=theme.Colors.PRIMARY, height=2).pack(fill="x", pady=(0, 15))
+
         # Champs
         fields_container = Frame(self.form_frame, bg=theme.Colors.BG_SECONDARY)
         fields_container.pack(fill="both", expand=True)
-        
-        for field_name, field_config in fields_config.items():
-            field_type = field_config.get("type", "entry")
-            label = field_config.get("label", field_name)
-            options = field_config.get("options", None)
-            default = field_config.get("default", "")
-            
+
+        first_entry = None
+        for field_name, cfg in fields_config.items():
             field = ModernFormField(
                 fields_container,
-                label,
-                field_type,
-                options,
-                default
+                label_text=cfg.get("label", field_name),
+                field_type=cfg.get("type", "entry"),
+                options=cfg.get("options"),
+                default_value=cfg.get("default", ""),
+                required=cfg.get("required", False),
+                placeholder=cfg.get("placeholder", "")
             )
             self.fields[field_name] = field
-        
+            if first_entry is None and hasattr(field, "entry"):
+                first_entry = field.entry
+
         # Boutons
         buttons_frame = Frame(self.form_frame, bg=theme.Colors.BG_SECONDARY)
-        buttons_frame.pack(fill="x", pady=30)
-        
+        buttons_frame.pack(fill="x", pady=25)
+
         submit_btn = Button(
             buttons_frame,
             text=submit_text,
@@ -184,12 +238,12 @@ class ModernForm:
             cursor="hand2",
             padx=30,
             pady=12,
-            width=20
+            width=18
         )
         submit_btn.pack(side="left", padx=10)
         submit_btn.bind("<Enter>", lambda e: submit_btn.config(bg="#66bb6a"))
         submit_btn.bind("<Leave>", lambda e: submit_btn.config(bg=theme.Colors.SUCCESS))
-        
+
         cancel_btn = Button(
             buttons_frame,
             text="Annuler",
@@ -203,65 +257,62 @@ class ModernForm:
             cursor="hand2",
             padx=30,
             pady=12,
-            width=20
+            width=18
         )
         cancel_btn.pack(side="right", padx=10)
         cancel_btn.bind("<Enter>", lambda e: cancel_btn.config(bg="#ef5350"))
         cancel_btn.bind("<Leave>", lambda e: cancel_btn.config(bg=theme.Colors.BTN_DANGER))
-        
-        # Pack canvas et scrollbar
-        self.canvas.pack(side="left", fill="both", expand=True)
+
+        canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        
-        # Bind mousewheel pour Linux et Windows
+
         def _on_mousewheel(event):
-            try:
-                # Windows
-                if hasattr(event, 'delta'):
-                    self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-                # Linux
-                elif hasattr(event, 'num'):
-                    if event.num == 4:
-                        self.canvas.yview_scroll(-1, "units")
-                    elif event.num == 5:
-                        self.canvas.yview_scroll(1, "units")
-            except (TclError, AttributeError):
-                # Ignorer les erreurs si le widget a été détruit
-                # TclError se produit quand le widget n'existe plus
-                pass
-        
-        # Utiliser bind au lieu de bind_all pour limiter la portée
-        # et lier uniquement aux widgets enfants du canvas
-        def bind_to_canvas_and_children(widget):
-            widget.bind("<MouseWheel>", _on_mousewheel)
-            widget.bind("<Button-4>", _on_mousewheel)
-            widget.bind("<Button-5>", _on_mousewheel)
-            for child in widget.winfo_children():
-                bind_to_canvas_and_children(child)
-        
-        bind_to_canvas_and_children(self.canvas)
-        bind_to_canvas_and_children(scrollable_frame)
-    
+            if not canvas.winfo_exists():
+                return
+            if event.num == 4:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                canvas.yview_scroll(1, "units")
+            elif event.delta:
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _unbind_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Button-4>")
+            canvas.unbind_all("<Button-5>")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        canvas.bind_all("<Button-4>", _on_mousewheel)
+        canvas.bind_all("<Button-5>", _on_mousewheel)
+        canvas.bind("<Destroy>", _unbind_mousewheel)
+
+        # Focus automatique sur le premier champ texte
+        if first_entry:
+            parent.after(100, first_entry.focus_set)
+
+    def _validate(self):
+        """Valide les champs requis et affiche les erreurs inline."""
+        valid = True
+        for field in self.fields.values():
+            field.clear_error()
+            if field.required and not field.get_value().strip():
+                field.show_error("Ce champ est obligatoire")
+                valid = False
+        return valid
+
     def _on_submit(self):
-        """Gère la soumission du formulaire"""
+        if not self._validate():
+            return
         if self.submit_command:
-            values = {name: field.get_value() for name, field in self.fields.items()}
-            self.submit_command(values)
-    
+            self.submit_command({name: f.get_value() for name, f in self.fields.items()})
+
     def _on_cancel(self):
-        """Annule le formulaire"""
-        if isinstance(self.parent, Frame):
-            self.parent.master.destroy()
-        else:
-            self.parent.destroy()
-    
+        self.parent.destroy()
+
     def get_values(self):
-        """Retourne toutes les valeurs du formulaire"""
-        return {name: field.get_value() for name, field in self.fields.items()}
-    
+        return {name: f.get_value() for name, f in self.fields.items()}
+
     def set_values(self, values):
-        """Définit les valeurs du formulaire"""
         for name, value in values.items():
             if name in self.fields:
                 self.fields[name].set_value(value)
-

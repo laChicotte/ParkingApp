@@ -411,22 +411,24 @@ class OwnersView(Frame):
         
         # Configuration des champs
         fields_config = {
-            "nom": {"label": "Nom *", "type": "entry"},
-            "prenom": {"label": "Prénom *", "type": "entry"},
-            "matricule": {"label": "Matricule", "type": "entry"},
-            "telephone": {"label": "Téléphone *", "type": "entry"},
-            "plaque": {"label": "Plaque *", "type": "entry"},
-            "code_barre": {"label": "Code Barre *", "type": "entry"},
-            "marque": {"label": "Marque", "type": "entry"},
-            "couleur": {"label": "Couleur *", "type": "option", "options": ["Rouge", "Noire", "Bleue", "Blanche", "Cendre", "Autres"]},
-            "statut": {"label": "Statut *", "type": "option", "options": ["Etudiant", "Enseignant", "Personnel", "Autre"]}
+            "nom": {"label": "Nom", "type": "entry", "required": True, "placeholder": "Ex: Diallo"},
+            "prenom": {"label": "Prénom", "type": "entry", "required": True, "placeholder": "Ex: Mamadou"},
+            "matricule": {"label": "Matricule", "type": "entry", "placeholder": "Ex: ETU2024001"},
+            "telephone": {"label": "Téléphone", "type": "entry", "required": True, "placeholder": "Ex: 622000000"},
+            "plaque": {"label": "Plaque d'immatriculation", "type": "entry", "required": True, "placeholder": "Ex: RC-1234-A"},
+            "code_barre": {"label": "Code Barre", "type": "entry", "required": True, "placeholder": "Ex: 000123"},
+            "marque": {"label": "Marque", "type": "entry", "placeholder": "Ex: Honda, Yamaha"},
+            "couleur": {"label": "Couleur", "type": "option", "options": ["Rouge", "Noire", "Bleue", "Blanche", "Cendre", "Autres"], "required": True},
+            "statut": {"label": "Statut", "type": "option", "options": ["Etudiant", "Enseignant", "Personnel", "Autre"], "required": True}
         }
         
-        # Valeurs par défaut
+        # Valeurs par défaut (plaque → immatriculation dans la BD)
         if owner_data:
+            mapping = {"plaque": "immatriculation"}
             for field_name, field_config in fields_config.items():
-                if field_name in owner_data:
-                    field_config["default"] = str(owner_data[field_name])
+                db_key = mapping.get(field_name, field_name)
+                if db_key in owner_data:
+                    field_config["default"] = str(owner_data[db_key])
         
         # Créer le formulaire
         from app.components.modern_form import ModernForm
@@ -440,13 +442,6 @@ class OwnersView(Frame):
     
     def _save_owner(self, values, owner_id, dialog):
         """Sauvegarde un propriétaire"""
-        # Validation
-        required_fields = ["nom", "prenom", "telephone", "plaque", "code_barre", "couleur", "statut"]
-        for field in required_fields:
-            if not values.get(field):
-                messagebox.showerror("Erreur", f"Le champ {field} est obligatoire.")
-                return
-        
         db = Bdonnee()
         code_barre = convertir_caracteres_en_chiffres(values["code_barre"])
         

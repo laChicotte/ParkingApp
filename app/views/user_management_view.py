@@ -240,12 +240,12 @@ class UserManagementView(Frame):
         
         # Configuration des champs
         fields_config = {
-            "username": {"label": "Nom d'utilisateur", "type": "entry"},
-            "nom": {"label": "Nom", "type": "entry"},
-            "prenom": {"label": "Prénom", "type": "entry"},
-            "telephone": {"label": "Téléphone", "type": "entry"},
-            "email": {"label": "Email", "type": "entry"},
-            "password": {"label": "Mot de passe", "type": "password"},
+            "username": {"label": "Nom d'utilisateur", "type": "entry", "required": True, "placeholder": "Ex: john.doe"},
+            "nom": {"label": "Nom", "type": "entry", "required": True, "placeholder": "Ex: Camara"},
+            "prenom": {"label": "Prénom", "type": "entry", "required": True, "placeholder": "Ex: Ibrahima"},
+            "telephone": {"label": "Téléphone", "type": "entry", "required": True, "placeholder": "Ex: 622000000"},
+            "email": {"label": "Email", "type": "entry", "required": True, "placeholder": "Ex: ibrahima@exemple.com"},
+            "password": {"label": "Mot de passe", "type": "password", "required": True},
             "role": {"label": "Rôle", "type": "option", "options": ["Utilisateur", "Administrateur"]}
         }
         
@@ -278,13 +278,6 @@ class UserManagementView(Frame):
     
     def _save_user(self, values, user_id, dialog):
         """Sauvegarde un utilisateur"""
-        # Validation
-        required_fields = ["username", "nom", "prenom", "telephone", "email"]
-        for field in required_fields:
-            if not values.get(field):
-                messagebox.showerror("Erreur", f"Le champ {field} est obligatoire.")
-                return
-        
         db = Bdonnee()
         roles = {"Utilisateur": 0, "Administrateur": 1}
         

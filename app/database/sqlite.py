@@ -152,6 +152,7 @@ class Bdonnee:
 
     def rechercher_par_code_barre(self, code_barre):
         try:
+            code_barre = str(code_barre).zfill(6)
             with self._connecter() as conn:
                 cursor = conn.cursor()
                 query = "SELECT * FROM owners WHERE code_barre = ?"
@@ -344,6 +345,7 @@ class Bdonnee:
 
 
     def verifier_existence(self, code_barre, immatriculation):
+        code_barre = str(code_barre).zfill(6)
         """Vérifie si le code-barres ou l'immatriculation existent déjà dans la table owners."""
         try:
             with self._connecter() as conn:
