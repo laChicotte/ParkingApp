@@ -5,7 +5,7 @@ from tkinter import Frame, Label, Entry, Button, Text, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
 from app.database.sqlite import Bdonnee
-from app.config import theme, paths
+from app.config import theme, paths, settings
 
 
 class HistoriqueView(Frame):
@@ -40,6 +40,15 @@ class HistoriqueView(Frame):
             style="Primary.TButton"
         )
         refresh_btn.pack(side="right", padx=10)
+
+        # Bouton vider l'historique (admin uniquement)
+        if settings.is_connected and settings.current_user.is_admin():
+            ttk.Button(
+                header_frame,
+                text="🗑️ Vider l'historique",
+                command=self.vider_historique,
+                style="Danger.TButton"
+            ).pack(side="right", padx=5)
         
         # Frame principal avec tableau et détails
         main_content = Frame(self, bg=theme.Colors.BG_SECONDARY)
@@ -142,6 +151,18 @@ class HistoriqueView(Frame):
         self.zone_text.insert("end", "Sélectionnez une ligne pour voir les détails")
         self.zone_text.config(state="disabled")
     
+    def vider_historique(self):
+        """Supprime tout l'historique après confirmation."""
+        if not messagebox.askyesno(
+            "Confirmation",
+            "Voulez-vous vraiment supprimer tout l'historique ?\nCette action est irréversible."
+        ):
+            return
+        db = Bdonnee()
+        if db.vider_historique():
+            messagebox.showinfo("Succès", "Historique vidé avec succès.")
+            self.afficher_historique()
+
     def afficher_historique(self):
         """Affiche l'historique dans le tableau"""
         db = Bdonnee()

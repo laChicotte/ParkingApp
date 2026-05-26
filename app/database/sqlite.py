@@ -11,6 +11,7 @@ class Bdonnee:
         self.tables = ["historique", "users", "owners"]
         self._creer_tables()
         self._creer_admin_par_defaut()
+        self._normaliser_codes_barres()
 
     def _connecter(self):
         """ Crée et retourne une connexion à la base de données SQLite. """
@@ -150,6 +151,23 @@ class Bdonnee:
         except sqlite3.Error:
             pass  # Ignorer les erreurs silencieusement
 
+    def _normaliser_codes_barres(self):
+        """Normalise tous les codes-barres existants à 6 chiffres (migration unique)."""
+        try:
+            with self._connecter() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, code_barre FROM owners WHERE LENGTH(code_barre) < 6")
+                rows = cursor.fetchall()
+                for row in rows:
+                    padded = str(row['code_barre']).zfill(6)
+                    try:
+                        cursor.execute("UPDATE owners SET code_barre = ? WHERE id = ?", (padded, row['id']))
+                    except sqlite3.IntegrityError:
+                        pass  # Conflit UNIQUE : donnée dupliquée, ignorer
+                conn.commit()
+        except sqlite3.Error:
+            pass
+
     def rechercher_par_code_barre(self, code_barre):
         try:
             code_barre = str(code_barre).zfill(6)
@@ -161,6 +179,35 @@ class Bdonnee:
                 return dict(row) if row else None
         except sqlite3.Error as e:
             messagebox.showerror("Erreur", f"Erreur lors de la recherche : {e}")
+            return None
+
+    def vider_historique(self):
+        """Supprime tous les enregistrements de l'historique."""
+        try:
+            with self._connecter() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM historique")
+                conn.commit()
+            return True
+        except sqlite3.Error as e:
+            messagebox.showerror("Erreur", f"Erreur lors de la suppression : {e}")
+            return False
+
+    def get_dernier_etat(self, owner_id):
+        """Retourne le dernier état enregistré AUJOURD'HUI pour cet owner ('Entrée', 'Sortie', ou None)."""
+        try:
+            query = """
+                SELECT etat FROM historique
+                WHERE owner_id = ? AND date = ?
+                ORDER BY heure DESC
+                LIMIT 1
+            """
+            with self._connecter() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (owner_id, today(1)))
+                row = cursor.fetchone()
+                return row[0] if row else None
+        except sqlite3.Error:
             return None
 
     def ajouter_historique(self, date, owner_id, etat, heure):
@@ -344,18 +391,28 @@ class Bdonnee:
         return entries_by_day
 
 
-    def verifier_existence(self, code_barre, immatriculation):
+    def verifier_existence(self, code_barre, immatriculation, exclude_id=None):
+        """Vérifie si le code-barres ou l'immatriculation existent déjà dans la table owners.
+        exclude_id : exclure l'owner en cours de modification."""
         code_barre = str(code_barre).zfill(6)
-        """Vérifie si le code-barres ou l'immatriculation existent déjà dans la table owners."""
         try:
             with self._connecter() as conn:
                 cursor = conn.cursor()
-                query = """
-                    SELECT code_barre, immatriculation 
-                    FROM owners 
-                    WHERE code_barre = ? OR immatriculation = ?
-                """
-                cursor.execute(query, (code_barre, immatriculation))
+                if exclude_id:
+                    query = """
+                        SELECT code_barre, immatriculation
+                        FROM owners
+                        WHERE (code_barre = ? OR immatriculation = ?)
+                        AND id != ?
+                    """
+                    cursor.execute(query, (code_barre, immatriculation, exclude_id))
+                else:
+                    query = """
+                        SELECT code_barre, immatriculation
+                        FROM owners
+                        WHERE code_barre = ? OR immatriculation = ?
+                    """
+                    cursor.execute(query, (code_barre, immatriculation))
                 rows = cursor.fetchall()
 
             messages = []

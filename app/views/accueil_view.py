@@ -4,18 +4,21 @@ Vue d'accueil modernisée - Gestion des entrées/sorties
 from tkinter import Frame, Label, Button, Text, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
+from datetime import datetime
 from app.database.sqlite import Bdonnee
 from app.config import settings, theme, paths
-from app.utils.fonctions import today, convertir_caracteres_en_chiffres, scan_qr_camera
+from app.utils.fonctions import today, convertir_caracteres_en_chiffres
 
 
 class AccueilView(Frame):
     """Vue d'accueil pour la gestion des entrées/sorties"""
-    
+
     def __init__(self, parent, main_window):
         super().__init__(parent, bg=theme.Colors.BG_SECONDARY)
         self.main_window = main_window
         self.scanning = False
+        self._last_scan_code = None
+        self._last_scan_time = None
         self.setup_ui()
     
     def setup_ui(self):
@@ -63,7 +66,19 @@ class AccueilView(Frame):
             pady=20
         )
         self.encours.pack()
-        
+
+        # Feedback visuel du dernier scan
+        self.feedback_label = Label(
+            left_frame,
+            text="",
+            font=('Arial', 13, "bold"),
+            bg=theme.Colors.BG_SECONDARY,
+            fg=theme.Colors.SUCCESS,
+            wraplength=220,
+            justify="center"
+        )
+        self.feedback_label.pack(pady=(0, 10))
+
         # Boutons d'action
         buttons_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
         buttons_frame.pack(pady=20)
@@ -151,48 +166,6 @@ class AccueilView(Frame):
             )
         self.stop_btn.pack(pady=10)
 
-        # Séparateur caméra
-        Frame(left_frame, bg=theme.Colors.BORDER, height=1).pack(fill="x", pady=10)
-
-        Label(
-            left_frame,
-            text="Scan caméra",
-            font=("Arial", 11),
-            bg=theme.Colors.BG_SECONDARY,
-            fg=theme.Colors.TEXT_SECONDARY
-        ).pack()
-
-        cam_buttons_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
-        cam_buttons_frame.pack(pady=8)
-
-        Button(
-            cam_buttons_frame,
-            text="📷 Entrée Cam",
-            command=self._camera_scan_entry,
-            font=("Arial", 11, "bold"),
-            bg=theme.Colors.SUCCESS,
-            fg=theme.Colors.TEXT_LIGHT,
-            activebackground="#66bb6a",
-            relief="flat",
-            cursor="hand2",
-            padx=12,
-            pady=7
-        ).pack(pady=4, fill="x")
-
-        Button(
-            cam_buttons_frame,
-            text="📷 Sortie Cam",
-            command=self._camera_scan_exit,
-            font=("Arial", 11, "bold"),
-            bg=theme.Colors.WARNING,
-            fg=theme.Colors.TEXT_LIGHT,
-            activebackground="#ffa726",
-            relief="flat",
-            cursor="hand2",
-            padx=12,
-            pady=7
-        ).pack(pady=4, fill="x")
-
         # Colonne centrale - Image et informations
         center_frame = Frame(content_frame, bg=theme.Colors.BG_SECONDARY)
         center_frame.pack(side="left", fill="both", expand=True, padx=20)
@@ -239,13 +212,17 @@ class AccueilView(Frame):
         self.zone_text.insert("end", "Nom : \nMatricule : \nMarque : \nPlaque : \nCode : \nTél : \nStatut : ")
         self.zone_text.config(state="disabled")
         
+        # Buffers pour reconstruire le code depuis les keysyms bruts
+        self._entry_buffer = ""
+        self._exit_buffer = ""
+
         # Champ caché pour capturer les entrées du scannage
         self.hidden_entry = ttk.Entry(self, font=("Arial", 12))
-        self.hidden_entry.bind("<Return>", self.on_barcode_entry)
+        self.hidden_entry.bind("<KeyPress>", lambda e: self._on_key_press(e, True))
         self.hidden_entry.place(x=-100, y=-100)
-        
+
         self.hidden_entry1 = ttk.Entry(self, font=("Arial", 12))
-        self.hidden_entry1.bind("<Return>", self.on_barcode_exit)
+        self.hidden_entry1.bind("<KeyPress>", lambda e: self._on_key_press(e, False))
         self.hidden_entry1.place(x=-200, y=-200)
     
     def _load_icons(self):
@@ -300,8 +277,8 @@ class AccueilView(Frame):
         self.entree_btn.config(state="normal")
         self.sortie_btn.config(state="normal")
         self.stop_btn.config(state="disabled")
-        self.hidden_entry.delete(0, "end")
-        self.hidden_entry1.delete(0, "end")
+        self._entry_buffer = ""
+        self._exit_buffer = ""
     
     def action_sortie(self):
         """Démarre le scan pour une sortie"""
@@ -312,26 +289,43 @@ class AccueilView(Frame):
         self.stop_btn.config(state="normal")
         self.after(100, self.hidden_entry1.focus_set)
     
-    def on_barcode_entry(self, event):
-        """Gère la saisie d'un code-barre pour entrée"""
-        barcode = self.hidden_entry.get()
-        if barcode:
-            self.scan_display(barcode, True)
-            self.hidden_entry.delete(0, "end")
-
-    def on_barcode_exit(self, event):
-        """Gère la saisie d'un code-barre pour sortie"""
-        barcode = self.hidden_entry1.get()
-        if barcode:
-            self.scan_display(barcode, False)
-            self.hidden_entry1.delete(0, "end")
+    def _on_key_press(self, event, is_entry):
+        """Accumule les caractères bruts du scanner, déclenche le scan sur Return."""
+        if event.keysym in ('Return', 'KP_Enter'):
+            buf = self._entry_buffer if is_entry else self._exit_buffer
+            if buf:
+                self.scan_display(buf, is_entry)
+            if is_entry:
+                self._entry_buffer = ""
+            else:
+                self._exit_buffer = ""
+        elif event.char:
+            if is_entry:
+                self._entry_buffer += event.char
+            else:
+                self._exit_buffer += event.char
+        return "break"
     
+    def _show_feedback(self, message, color):
+        """Affiche un message de feedback visuel temporaire."""
+        self.feedback_label.config(text=message, fg=color)
+        self.after(3000, lambda: self.feedback_label.config(text=""))
+
     def scan_display(self, scanned_code, is_entry):
         """Affiche les informations du code-barre scanné"""
         converted_code = convertir_caracteres_en_chiffres(scanned_code)
+
+        # Déduplication : ignorer le même code dans les 3 secondes
+        now = datetime.now()
+        if (self._last_scan_code == converted_code and self._last_scan_time and
+                (now - self._last_scan_time).total_seconds() < 3):
+            return
+        self._last_scan_code = converted_code
+        self._last_scan_time = now
+
         db = Bdonnee()
         resultat = db.rechercher_par_code_barre(converted_code)
-        
+
         if resultat:
             # Mettre à jour les informations
             self.zone_text.config(state="normal")
@@ -344,36 +338,45 @@ class AccueilView(Frame):
             self.zone_text.insert("end", f"Tél : {resultat['telephone']}\n")
             self.zone_text.insert("end", f"Couleur : {resultat['couleur']}\n")
             self.zone_text.config(state="disabled")
-            
+
             # Charger la photo
             self.set_photo(f"{converted_code}.png")
-            
-            # Ajouter à l'historique
+
             etat = "Entrée" if is_entry else "Sortie"
-            if not db.ajouter_historique(today(1), resultat['id'], etat, today(0)):
-                messagebox.showwarning("Échec", f"{etat} non enregistrée.")
+
+            # Vérifier la cohérence avec le dernier état enregistré
+            dernier = db.get_dernier_etat(resultat['id'])
+            if dernier == etat:
+                self._show_feedback(
+                    f"⚠ Déjà enregistré(e) en {etat}\n({resultat['nom']} {resultat['prenom']})",
+                    theme.Colors.WARNING
+                )
+                self._restore_focus(is_entry)
+                return
+
+            # Enregistrer dans l'historique
+            if db.ajouter_historique(today(1), resultat['id'], etat, today(0)):
+                self._show_feedback(
+                    f"✓ {etat} — {resultat['nom']} {resultat['prenom']}",
+                    theme.Colors.SUCCESS if is_entry else theme.Colors.WARNING
+                )
             else:
-                messagebox.showinfo("Succès", f"{etat} enregistrée avec succès.")
+                self._show_feedback(f"✗ {etat} non enregistrée", theme.Colors.ERROR)
         else:
-            messagebox.showwarning(
-                "Non trouvé",
-                f"Aucune donnée trouvée pour ce code-barre.\n\n"
-                f"Code lu        : {scanned_code}\n"
-                f"Code converti  : {converted_code}"
+            self._show_feedback(
+                f"✗ Code inconnu\nLu : {scanned_code}\nConverti : {converted_code}",
+                theme.Colors.ERROR
             )
+
+        self._restore_focus(is_entry)
+
+    def _restore_focus(self, is_entry):
+        """Remet le focus sur le champ caché actif après traitement."""
+        if is_entry:
+            self.after(100, self.hidden_entry.focus_set)
+        else:
+            self.after(100, self.hidden_entry1.focus_set)
     
-    def _camera_scan_entry(self):
-        """Lance le scan caméra pour une entrée"""
-        self.encours.config(text="Scan caméra Entrée...", fg=theme.Colors.SUCCESS)
-        scan_qr_camera(lambda code: self.scan_display(code, True))
-        self.encours.config(text="Scan arrêté", fg=theme.Colors.TEXT_SECONDARY)
-
-    def _camera_scan_exit(self):
-        """Lance le scan caméra pour une sortie"""
-        self.encours.config(text="Scan caméra Sortie...", fg=theme.Colors.WARNING)
-        scan_qr_camera(lambda code: self.scan_display(code, False))
-        self.encours.config(text="Scan arrêté", fg=theme.Colors.TEXT_SECONDARY)
-
     def set_photo(self, photo_nom):
         """Met à jour l'image affichée"""
         try:

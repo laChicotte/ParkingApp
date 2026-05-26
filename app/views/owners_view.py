@@ -459,8 +459,8 @@ class OwnersView(Frame):
                 "statut": values["statut"]
             }
             
-            # Vérifier l'existence
-            test, sms = db.verifier_existence(code_barre, values["plaque"])
+            # Vérifier l'existence en excluant l'owner en cours de modification
+            test, sms = db.verifier_existence(code_barre, values["plaque"], exclude_id=owner_id)
             if test:
                 messagebox.showerror("Attention", sms)
                 return
