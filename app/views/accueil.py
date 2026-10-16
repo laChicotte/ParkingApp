@@ -1,6 +1,6 @@
 from app.utils.fonctions import *
 from PIL import Image, ImageTk
-from app.database.sqlite import Bdonnee  # Changer 'mysql' en 'sqlite' pour utiliser SQLite
+from app.database import Bdonnee
 from app.views.dashboard import Dashboard
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg

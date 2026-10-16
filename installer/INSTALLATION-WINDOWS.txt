@@ -1,0 +1,39 @@
+UKAG Parking 1.0.1 - Installation Windows 64 bits
+
+1. Installer XAMPP sur le poste, puis demarrer MySQL dans son panneau de controle.
+2. Executer UKAGParking-Setup-1.0.1-x64.exe et suivre l'assistant en francais.
+3. Lancer UKAG Parking depuis le menu Demarrer ou son raccourci.
+4. Au premier lancement, renseigner MySQL :
+   Serveur : 127.0.0.1
+   Port : 3306 (adapter si XAMPP utilise un autre port)
+   Utilisateur : root (ou un compte MySQL dedie)
+   Mot de passe : celui de MySQL, souvent vide dans une installation XAMPP neuve
+   Base : parkingapp
+5. Cliquer sur Verifier et enregistrer. La base absente et ses tables sont preparees.
+6. Si users est vide, creer le premier compte administrateur de UKAG Parking.
+
+Python n'a pas besoin d'etre installe sur les postes destinataires.
+L'installateur ne contient pas XAMPP, les donnees MySQL ni les photos personnelles.
+Chaque poste ayant son MySQL local dispose de donnees independantes.
+
+Donnees locales : %LOCALAPPDATA%\UKAG Parking
+  config\config.json : connexion MySQL propre au poste
+  images\ : photos des usagers (fichiers PNG nommes selon leur code-barres)
+  exports\ : exports HTML
+  logs\application.log : erreurs de lancement
+
+Pour retrouver les photos actuelles sur un autre poste, copier les fichiers PNG de
+resources\images vers %LOCALAPPDATA%\UKAG Parking\images, en conservant leurs noms.
+Les images ne sont pas stockees dans le dump SQL. Le transfert de la base se fait
+separement avec phpMyAdmin. Ne pas reimporter le dump dans des tables deja remplies.
+
+La configuration MySQL peut etre modifiee via Fichier > Configurer MySQL / XAMPP.
+Une mise a jour ou une desinstallation du programme conserve ces donnees locales.
+
+Pour une version portable, copier le dossier dist\UKAGParking entier ; ne pas
+copier seulement UKAGParking.exe, qui depend du sous-dossier _internal.
+
+Recompilation (sur Windows 64 bits) :
+  .\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
+  powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1 -Installer
+Un compilateur Inno Setup 6 est requis pour fabriquer l'installateur.

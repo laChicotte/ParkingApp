@@ -3,7 +3,7 @@ Fenêtre principale de l'application avec navigation par onglets
 """
 from tkinter import Tk, Frame, Menu, Button, Label
 from tkinter import ttk
-from app.config import settings, theme, paths
+from app.config import settings, theme, paths, branding
 from app.views.accueil_view import AccueilView
 from app.views.dashboard_view import DashboardView
 from app.views.historique_view import HistoriqueView
@@ -17,8 +17,13 @@ class MainWindow:
     
     def __init__(self):
         self.root = Tk()
-        self.root.title("ParkingApp - Gestion de Parking")
+        self.root.title(f"{branding.APP_NAME} — {branding.UNIVERSITY_NAME}")
+        self.window_icon = branding.load_logo(self.root, (48, 48))
+        if self.window_icon:
+            self.root.iconphoto(True, self.window_icon)
         self.root.geometry("1400x900")
+        self.root.minsize(1100, 700)
+        self.root.option_add("*Font", (theme.FONT_FAMILY, 11))
         
         # Configuration de la fenêtre
         try:
@@ -36,12 +41,12 @@ class MainWindow:
         self.is_connected = settings.is_connected
         
         # Configuration du style
-        self.style = theme.Theme.configure_style()
+        self.style = theme.Theme.configure_style(self.root)
         
         # Créer l'interface
         self._create_menu()
-        self._create_main_container()
         self._create_status_bar()
+        self._create_main_container()
         
         # Afficher la vue d'accueil par défaut
         self.show_accueil()
@@ -54,16 +59,18 @@ class MainWindow:
         # Menu Fichier
         file_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Fichier", menu=file_menu)
+        file_menu.add_command(label="Configurer MySQL / XAMPP", command=self._configure_database)
+        file_menu.add_separator()
         file_menu.add_command(label="Quitter", command=self._on_closing)
         
         # Menu Navigation
         nav_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Navigation", menu=nav_menu)
         nav_menu.add_command(label="Accueil", command=self.show_accueil)
-        nav_menu.add_command(label="Dashboard", command=self.show_dashboard)
+        nav_menu.add_command(label="Tableau de bord", command=self.show_dashboard)
         nav_menu.add_command(label="Historique", command=self.show_historique)
-        nav_menu.add_command(label="Motos", command=self.show_owners)
-        nav_menu.add_command(label="Utilisateurs", command=self.show_users)
+        nav_menu.add_command(label="Usagers et motos", command=self.show_owners)
+        nav_menu.add_command(label="Comptes d'accès", command=self.show_users)
         
         # Menu Aide
         help_menu = Menu(menubar, tearoff=0)
@@ -72,38 +79,54 @@ class MainWindow:
         help_menu.add_separator()
         help_menu.add_command(label="À propos", command=self._show_about)
     
+    def _configure_database(self):
+        from app.config.installation import configure_database
+        from tkinter import messagebox
+        if configure_database(self.root):
+            messagebox.showinfo("Configuration enregistrée", "Relancez UKAG Parking pour utiliser cette connexion.", parent=self.root)
+            self.root.destroy()
+
     def _create_main_container(self):
         """Crée le conteneur principal avec navigation"""
         # Frame principal
         main_frame = Frame(self.root, bg=theme.Colors.BG_PRIMARY)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        main_frame.pack(fill="both", expand=True, padx=16, pady=16)
         
         # Frame de navigation latérale
-        nav_frame = Frame(main_frame, bg=theme.Colors.BG_DARK, width=200)
-        nav_frame.pack(side="left", fill="y", padx=(0, 10))
+        nav_frame = Frame(main_frame, bg=theme.Colors.BG_DARK, width=215)
+        nav_frame.pack(side="left", fill="y", padx=(0, 16))
         nav_frame.pack_propagate(False)
         
         # Titre de navigation
+        self.sidebar_logo = branding.load_logo(nav_frame, (84, 84))
+        if self.sidebar_logo:
+            logo_label = Label(nav_frame, image=self.sidebar_logo,
+                               bg=theme.Colors.BG_SECONDARY, padx=5, pady=5)
+            logo_label.pack(anchor="w", padx=20, pady=(20, 0))
         title_label = ttk.Label(
             nav_frame,
-            text="ParkingApp",
+            text=branding.APP_NAME,
             style="Title.TLabel",
             background=theme.Colors.BG_DARK,
             foreground=theme.Colors.TEXT_LIGHT,
-            font=("Arial", 16, "bold")
+            font=(theme.FONT_FAMILY, 18, "bold")
         )
-        title_label.pack(pady=20)
+        title_label.pack(anchor="w", padx=20, pady=(12, 4))
+        Label(nav_frame, text="Gestion du parking",
+              font=(theme.FONT_FAMILY, 10), bg=theme.Colors.BG_DARK,
+              fg="#bdcfd9").pack(anchor="w", padx=20, pady=(0, 28))
         
         # Boutons de navigation avec style amélioré
         nav_buttons = [
-            ("🏠 Accueil", self.show_accueil),
-            ("📊 Dashboard", self.show_dashboard),
-            ("📜 Historique", self.show_historique),
-            ("🏍️ Motos", self.show_owners),
-            ("👥 Utilisateurs", self.show_users),
+            ("Accueil", self.show_accueil),
+            ("Tableau de bord", self.show_dashboard),
+            ("Historique", self.show_historique),
+            ("Usagers et motos", self.show_owners),
+            ("Comptes d'accès", self.show_users),
         ]
         
         self.nav_buttons = []
+        self.active_nav = None
         for text, command in nav_buttons:
             btn_frame = Frame(nav_frame, bg=theme.Colors.BG_DARK)
             btn_frame.pack(pady=3, padx=10, fill="x")
@@ -112,20 +135,25 @@ class MainWindow:
                 btn_frame,
                 text=text,
                 command=command,
-                font=("Arial", 12, "bold"),
-                bg=theme.Colors.PRIMARY,
+                font=(theme.FONT_FAMILY, 11, "bold"),
+                bg=theme.Colors.BG_DARK,
                 fg=theme.Colors.TEXT_LIGHT,
-                activebackground=theme.Colors.PRIMARY_LIGHT,
+                activebackground=theme.Colors.NAV_HOVER,
                 activeforeground=theme.Colors.TEXT_LIGHT,
                 relief="flat",
+                bd=0,
+                highlightthickness=1,
+                highlightbackground=theme.Colors.BG_DARK,
+                highlightcolor=theme.Colors.ACCENT,
                 cursor="hand2",
                 padx=15,
                 pady=12,
                 anchor="w"
             )
             btn.pack(fill="x")
-            btn.bind("<Enter>", lambda e, b=btn: b.config(bg=theme.Colors.PRIMARY_LIGHT))
-            btn.bind("<Leave>", lambda e, b=btn: b.config(bg=theme.Colors.PRIMARY))
+            btn.bind("<Enter>", lambda e, b=btn: b.config(bg=theme.Colors.NAV_HOVER))
+            btn.bind("<Leave>", lambda e, b=btn: b.config(
+                bg=theme.Colors.NAV_SELECTED if b.cget("text") == self.active_nav else theme.Colors.BG_DARK))
             self.nav_buttons.append(btn)
         
         # Bouton de connexion/déconnexion
@@ -134,12 +162,12 @@ class MainWindow:
         
         self.login_btn = Button(
             login_frame,
-            text="🔐 Connexion",
+            text="Connexion",
             command=self._toggle_login,
-            font=("Arial", 12, "bold"),
+            font=(theme.FONT_FAMILY, 12, "bold"),
             bg=theme.Colors.SUCCESS,
             fg=theme.Colors.TEXT_LIGHT,
-            activebackground="#66bb6a",
+            activebackground=theme.Colors.SUCCESS_HOVER,
             activeforeground=theme.Colors.TEXT_LIGHT,
             relief="flat",
             cursor="hand2",
@@ -147,12 +175,30 @@ class MainWindow:
             pady=12
         )
         self.login_btn.pack(fill="x")
-        self.login_btn.bind("<Enter>", lambda e: self.login_btn.config(bg="#66bb6a"))
+        self.login_btn.bind("<Enter>", lambda e: self.login_btn.config(bg=theme.Colors.SUCCESS_HOVER))
         self.login_btn.bind("<Leave>", lambda e: self.login_btn.config(bg=theme.Colors.SUCCESS))
         
         # Frame de contenu (zone principale)
-        self.content_frame = Frame(main_frame, bg=theme.Colors.BG_SECONDARY, relief="flat")
-        self.content_frame.pack(side="right", fill="both", expand=True)
+        content_shell = Frame(main_frame, bg=theme.Colors.BG_SECONDARY)
+        content_shell.pack(side="right", fill="both", expand=True)
+        university_header = Frame(content_shell, bg=theme.Colors.BG_SECONDARY)
+        university_header.pack(fill="x", padx=24, pady=(16, 0))
+        self.header_logo = branding.load_logo(university_header, (48, 48))
+        if self.header_logo:
+            Label(university_header, image=self.header_logo,
+                  bg=theme.Colors.BG_SECONDARY).pack(side="left", padx=(0, 12))
+        header_text = Frame(university_header, bg=theme.Colors.BG_SECONDARY)
+        header_text.pack(side="left", fill="x", expand=True)
+        Label(header_text, text=branding.UNIVERSITY_NAME,
+              font=(theme.FONT_FAMILY, 13, "bold"), bg=theme.Colors.BG_SECONDARY,
+              fg=theme.Colors.TEXT_PRIMARY).pack(anchor="w")
+        self.section_label = Label(header_text, text=branding.SERVICE_NAME,
+                                   font=(theme.FONT_FAMILY, 10), bg=theme.Colors.BG_SECONDARY,
+                                   fg=theme.Colors.TEXT_SECONDARY)
+        self.section_label.pack(anchor="w", pady=(2, 0))
+        Frame(content_shell, bg=theme.Colors.BORDER, height=1).pack(fill="x", padx=24, pady=(12, 0))
+        self.content_frame = Frame(content_shell, bg=theme.Colors.BG_SECONDARY, relief="flat")
+        self.content_frame.pack(fill="both", expand=True)
         
         # Frame pour le contenu actuel
         self.current_view_frame = None
@@ -168,7 +214,7 @@ class MainWindow:
             text="Prêt",
             background=theme.Colors.BG_DARK,
             foreground=theme.Colors.TEXT_LIGHT,
-            font=("Arial", 10)
+            font=(theme.FONT_FAMILY, 10)
         )
         self.status_label.pack(side="left", padx=10, pady=5)
         
@@ -177,7 +223,7 @@ class MainWindow:
             text="Non connecté",
             background=theme.Colors.BG_DARK,
             foreground=theme.Colors.TEXT_LIGHT,
-            font=("Arial", 10)
+            font=(theme.FONT_FAMILY, 10)
         )
         self.user_label.pack(side="right", padx=10, pady=5)
     
@@ -186,7 +232,16 @@ class MainWindow:
         if self.current_view_frame:
             self.current_view_frame.destroy()
         self.current_view_frame = Frame(self.content_frame, bg=theme.Colors.BG_SECONDARY)
-        self.current_view_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        self.current_view_frame.pack(fill="both", expand=True, padx=16, pady=16)
+
+    def _select_navigation(self, label):
+        """Indique la section ouverte, y compris après navigation par le menu."""
+        self.active_nav = label
+        self.section_label.config(text=f"{branding.SERVICE_NAME} / {label}")
+        self.root.title(f"{branding.APP_NAME} — {label}")
+        for button in self.nav_buttons:
+            selected = button.cget("text") == label
+            button.config(bg=theme.Colors.NAV_SELECTED if selected else theme.Colors.BG_DARK)
     
     def show_accueil(self):
         """Affiche la vue d'accueil"""
@@ -194,6 +249,7 @@ class MainWindow:
         view = AccueilView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
         self._update_status("Vue: Accueil")
+        self._select_navigation("Accueil")
     
     def show_dashboard(self):
         """Affiche le dashboard"""
@@ -202,7 +258,8 @@ class MainWindow:
         self._clear_content()
         view = DashboardView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
-        self._update_status("Vue: Dashboard")
+        self._update_status("Vue: Tableau de bord")
+        self._select_navigation("Tableau de bord")
     
     def show_historique(self):
         """Affiche l'historique"""
@@ -210,13 +267,15 @@ class MainWindow:
         view = HistoriqueView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
         self._update_status("Vue: Historique")
+        self._select_navigation("Historique")
     
     def show_owners(self):
         """Affiche la gestion des motos"""
         self._clear_content()
         view = OwnersView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
-        self._update_status("Vue: Gestion des Motos")
+        self._update_status("Vue: Usagers et motos")
+        self._select_navigation("Usagers et motos")
     
     def show_users(self):
         """Affiche la gestion des utilisateurs"""
@@ -225,7 +284,8 @@ class MainWindow:
         self._clear_content()
         view = UserManagementView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
-        self._update_status("Vue: Gestion des Utilisateurs")
+        self._update_status("Vue: Comptes d'accès")
+        self._select_navigation("Comptes d'accès")
     
     def _toggle_login(self):
         """Gère la connexion/déconnexion"""
@@ -245,8 +305,8 @@ class MainWindow:
         settings.logout()
         self.is_connected = settings.is_connected
         self.current_user = settings.current_user
-        self.login_btn.config(text="🔐 Connexion", bg=theme.Colors.SUCCESS)
-        self.login_btn.bind("<Enter>", lambda e: self.login_btn.config(bg="#66bb6a"))
+        self.login_btn.config(text="Connexion", bg=theme.Colors.SUCCESS)
+        self.login_btn.bind("<Enter>", lambda e: self.login_btn.config(bg=theme.Colors.SUCCESS_HOVER))
         self.login_btn.bind("<Leave>", lambda e: self.login_btn.config(bg=theme.Colors.SUCCESS))
         self.user_label.config(text="Non connecté")
         self._update_status("Déconnecté")
@@ -297,8 +357,8 @@ class MainWindow:
         # Titre
         title = Label(
             main_frame,
-            text="À propos de ParkingApp",
-            font=("Arial", 22, "bold"),
+            text=f"À propos de {branding.APP_NAME}",
+            font=(theme.FONT_FAMILY, 22, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY,
             pady=20
@@ -308,8 +368,8 @@ class MainWindow:
         # Version
         version = Label(
             main_frame,
-            text="Version 1.0.0",
-            font=("Arial", 12),
+            text=f"Version {branding.APP_VERSION}",
+            font=(theme.FONT_FAMILY, 12),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_SECONDARY,
             pady=10
@@ -320,7 +380,7 @@ class MainWindow:
         description = Label(
             main_frame,
             text="Application de gestion de parking\npour l'Université Kofi Annan de Guinée",
-            font=("Arial", 12),
+            font=(theme.FONT_FAMILY, 12),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_PRIMARY,
             justify="center",
@@ -332,7 +392,7 @@ class MainWindow:
         developer = Label(
             main_frame,
             text="Développé par :\nElhadj Ibrahima Barry",
-            font=("Arial", 11, "bold"),
+            font=(theme.FONT_FAMILY, 11, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY,
             justify="center",
@@ -343,8 +403,8 @@ class MainWindow:
         # Technologies
         tech = Label(
             main_frame,
-            text="Technologies :\nPython • Tkinter • SQLite",
-            font=("Arial", 10),
+            text="Technologies :\nPython • Tkinter • MySQL",
+            font=(theme.FONT_FAMILY, 10),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_SECONDARY,
             justify="center",
@@ -357,7 +417,7 @@ class MainWindow:
             main_frame,
             text="Fermer",
             command=about_window.destroy,
-            font=("Arial", 11, "bold"),
+            font=(theme.FONT_FAMILY, 11, "bold"),
             bg=theme.Colors.PRIMARY,
             fg=theme.Colors.TEXT_LIGHT,
             activebackground=theme.Colors.PRIMARY_LIGHT,
@@ -422,8 +482,8 @@ class MainWindow:
         # Titre
         title = Label(
             main_frame,
-            text="Guide utilisateur - ParkingApp",
-            font=("Arial", 20, "bold"),
+            text="Guide utilisateur - UKAG Parking",
+            font=(theme.FONT_FAMILY, 20, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY,
             pady=15
@@ -439,7 +499,7 @@ class MainWindow:
         
         guide_text = Text(
             text_frame,
-            font=("Arial", 11),
+            font=(theme.FONT_FAMILY, 11),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_PRIMARY,
             wrap="word",
@@ -462,7 +522,7 @@ class MainWindow:
 ───────────────────────────────────────────────────────────────
 • Cliquez sur le bouton "🔐 Connexion" dans le menu latéral
 • Entrez votre nom d'utilisateur et mot de passe
-• Par défaut : admin / admin (pour SQLite)
+• Par défaut : vos identifiants UKAG Parking
 
 2. ACCUEIL - Gestion des entrées/sorties
 ───────────────────────────────────────────────────────────────
@@ -488,9 +548,9 @@ class MainWindow:
 • Recherchez par date, nom, plaque, etc.
 • Exportez les données si nécessaire
 
-5. GESTION DES MOTOS
+5. USAGERS ET MOTOS
 ───────────────────────────────────────────────────────────────
-• Cliquez sur "🏍️ Motos" dans le menu
+• Cliquez sur "Usagers et motos" dans le menu
 • Ajouter : Enregistrer un nouveau propriétaire de moto
 • Modifier : Modifier les informations d'un propriétaire
 • Supprimer : Supprimer un propriétaire
@@ -498,9 +558,9 @@ class MainWindow:
 • Exporter : Exporter la liste en HTML
 • Changer photo : Prendre une photo avec la webcam
 
-6. GESTION DES UTILISATEURS (Admin uniquement)
+6. COMPTES D’ACCÈS (Admin uniquement)
 ───────────────────────────────────────────────────────────────
-• Cliquez sur "👥 Utilisateurs" dans le menu
+• Cliquez sur "Comptes d’accès" dans le menu
 • Réservé aux administrateurs
 • Ajouter : Créer un nouvel utilisateur
 • Modifier : Modifier les informations d'un utilisateur
@@ -539,7 +599,7 @@ class MainWindow:
             main_frame,
             text="Fermer",
             command=guide_window.destroy,
-            font=("Arial", 11, "bold"),
+            font=(theme.FONT_FAMILY, 11, "bold"),
             bg=theme.Colors.PRIMARY,
             fg=theme.Colors.TEXT_LIGHT,
             activebackground=theme.Colors.PRIMARY_LIGHT,

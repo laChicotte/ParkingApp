@@ -1,5 +1,5 @@
 from app.utils.fonctions import *
-from app.database.sqlite import Bdonnee  # Changer 'mysql' en 'sqlite' pour utiliser SQLite 
+from app.database import Bdonnee
 from tkinter import Canvas, Label, Button, Entry, Text, Toplevel, filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 from app.config import settings
@@ -26,7 +26,7 @@ class Owner:
         self.setup_ui()
         self.update_menu_state()
 
-        img_profil = Image.open(str(paths.get_icon_path("profil.png")))  
+        img_profil = Image.open(str(paths.get_icon_path("profil.png")))
         img_profil = img_profil.resize((70, 70), Image.Resampling.LANCZOS)
         self.icon_profil = ImageTk.PhotoImage(img_profil)
         # Charger les widgets principaux
@@ -35,10 +35,10 @@ class Owner:
         except:
             name ="Anonyme"
 
-        self.profil = Button(root, text=f"{name}", image=self.icon_profil, compound="top", 
+        self.profil = Button(root, text=f"{name}", image=self.icon_profil, compound="top",
                              font=("Arial", 10), bg='#091821', fg='white', command=self._login_logout)
         self.profil.place(relx=1.0, y=0, anchor="ne")
-        
+
         self.afficher_owners()
 
     def setup_ui(self):
@@ -51,7 +51,7 @@ class Owner:
         Button(self.canvas, text="Exporter les données", font=('Arial', 14), bg="gray", command=self.exporter).place(
             x=680, y=50, width=220)
 
-        # exporter les infos des motard vers html, 
+        # exporter les infos des motard vers html,
 
         # Boutons Modifier et Supprimer
         Button(self.canvas, text="Modifier", font=('Arial', 14), bg="green", fg="white", command=self.update_owner).place(
@@ -65,7 +65,7 @@ class Owner:
         self.entry.place(x=680, y=160, width=220)
         Button(self.canvas, text="Rechercher", font=('Arial', 14), bg="blue", fg="white", command=self.rechercher).place(
             x=680, y=200, width=220)
-        
+
 
         self.tree = ttk.Treeview(self.canvas, columns=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11), height=10, show="headings")
         self.tree.heading(1, text="N°")
@@ -117,7 +117,7 @@ class Owner:
         # Bouton "Afficher Users"
         self.change_pic = Button(self.canvas, text="Changer la photo", font=('Arial', 14), bg="blue", fg="white", command=self.set_photo)
         self.change_pic.place(x=450, y=480, height=30)
-        
+
         # Zone de texte pour les informations
         self.zone_text = Text(self.canvas, font=('Arial', 16))
         self.zone_text.place(x=20, y=320, width=400, height=180)
@@ -190,13 +190,13 @@ class Owner:
         selected_item = self.tree.selection()
         if selected_item:
             values = self.tree.item(selected_item)["values"]
-          
+
             self.zone_text.config(state="normal")
             self.zone_text.delete("1.0", "end")
             self.zone_text.insert(
                 "end", "Nom : {}\nPrénom : {}\nTélephone : {}\nMarque : {}\nPlaque : {}\nCode Barre : {}\nCouleur : {}".format(
                 values[1], values[2], values[3], values[5], values[6], str(values[4]).zfill(6), values[7]))
-            
+
 
             self.zone_text.config(state="disabled")
             # Zone pour afficher la photo par défaut
@@ -236,12 +236,12 @@ class Owner:
             self.tree.insert("", "end", values=(
                 i, ligne['nom'],
                 ligne['prenom'], ligne['telephone'],
-                str(ligne['code_barre']).zfill(6), 
-                ligne['marque'], ligne['immatriculation'], 
+                str(ligne['code_barre']).zfill(6),
+                ligne['marque'], ligne['immatriculation'],
                 ligne['couleur'], ligne['id'],
                 ligne['matricule'], ligne['statut']
             ))
-        
+
     def afficher_search(self, code):
         """
         Récupère les données de l'historique à partir de la base de données
@@ -264,8 +264,8 @@ class Owner:
             self.tree.insert("", "end", values=(
                 i, ligne['nom'],
                 ligne['prenom'], ligne['telephone'],
-                str(ligne['code_barre']).zfill(6), 
-                ligne['marque'], ligne['immatriculation'], 
+                str(ligne['code_barre']).zfill(6),
+                ligne['marque'], ligne['immatriculation'],
                 ligne['couleur'], ligne['id']
             ))
 
@@ -337,7 +337,7 @@ class Owner:
         nom_entry = Entry(form_frame, font=("Arial", 12), width=20)
         nom_entry.insert(0, values[1])
         nom_entry.grid(row=1, column=1, padx=10, pady=10)
-        
+
         Label(form_frame, text="Prénom : *", bg="#1e1e2f", fg="white", font=("Arial", 14, "bold")).grid(row=1, column=2, padx=10, pady=10, sticky="w")
         prenom_entry = Entry(form_frame, font=("Arial", 12), width=20)
         prenom_entry.insert(0, values[2])
@@ -384,7 +384,7 @@ class Owner:
         Label(form_frame, text="Statut : *", bg="#1e1e2f", fg="white", font=("Arial", 14, "bold")).grid(row=5, column=0, padx=10, pady=10, sticky="w")
         statut = StringVar(dialog)
         statut.set(values[-1])
-       
+
 
         roles = ["Etudiant", "Enseignant", "Personnel", "Autre"]
         statut_menu = OptionMenu(form_frame, statut, *roles)
@@ -418,7 +418,7 @@ class Owner:
             if not telephone:
                 messagebox.showwarning("Alerte", "Le numéro de téléphone est obligatoire.")
                 return
-            if not all([state or col]) : 
+            if not all([state or col]) :
                 messagebox.showwarning("Alerte", "Les champs statut et couleur sont obligatoires.")
                 return
 
@@ -438,14 +438,14 @@ class Owner:
             if(test):
                 messagebox.showerror("Attention", sms)
                 return
-            
+
             if db.modifier(2, row_id, nouvelles_valeurs):  # Passe un dictionnaire à la méthode 'modifier'
                 messagebox.showinfo("Succès", "Modification effectuées avec succès.")
                 dialog.destroy()  # Fermer la boîte de dialogue
                 self.afficher_owners()  # Recharger la table
             else:
                 messagebox.showerror("Erreur", "Une erreur est survenue lors de la modification.")
-           
+
         Button(
             dialog,
             text="Enregistrer",
@@ -593,7 +593,7 @@ class Owner:
                         <th>Statut</th>
                         <th>Photo</th>
                     </tr>
-                """ 
+                """
 
         # Ajout des lignes du tableau
         for motard in liste_motards:

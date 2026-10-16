@@ -4,8 +4,9 @@ Vue Gestion des Motos modernisée
 from tkinter import Frame, Label, Entry, Button, Text, Toplevel, messagebox, StringVar, OptionMenu
 from tkinter import ttk
 from PIL import Image, ImageTk
-from app.database.sqlite import Bdonnee
-from app.config import theme, paths
+from app.database import Bdonnee
+from app.config import theme, paths, branding
+from html import escape
 from app.utils.fonctions import convertir_caracteres_en_chiffres, capture_with_preview
 import webbrowser
 import os
@@ -28,69 +29,79 @@ class OwnersView(Frame):
         
         title = Label(
             header_frame,
-            text="Gestion des Motos",
-            font=("Arial", 24, "bold"),
+            text="Usagers et motos",
+            font=(theme.FONT_FAMILY, 24, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY
         )
-        title.pack(side="left")
+        title.pack(anchor="w")
+        Label(header_frame, text="Étudiants, enseignants et personnel : les usagers du parking de l’UKAG.",
+              font=(theme.FONT_FAMILY, 11), bg=theme.Colors.BG_SECONDARY,
+              fg=theme.Colors.TEXT_SECONDARY).pack(anchor="w", pady=(4, 0))
         
         # Boutons d'action
-        actions_frame = Frame(header_frame, bg=theme.Colors.BG_SECONDARY)
-        actions_frame.pack(side="right")
+        actions_frame = Frame(self, bg=theme.Colors.BG_SECONDARY)
+        actions_frame.pack(fill="x", padx=15, pady=(8, 12))
         
         ttk.Button(
             actions_frame,
-            text="➕ Ajouter",
+            text="Ajouter une moto",
             command=self.add_owner,
             style="Success.TButton"
         ).pack(side="left", padx=5)
         
         ttk.Button(
             actions_frame,
-            text="✏️ Modifier",
+            text="Modifier",
             command=self.update_owner,
             style="Primary.TButton"
         ).pack(side="left", padx=5)
         
         ttk.Button(
             actions_frame,
-            text="🗑️ Supprimer",
+            text="Supprimer",
             command=self.supprimer,
             style="Danger.TButton"
         ).pack(side="left", padx=5)
         
         ttk.Button(
             actions_frame,
-            text="📊 Exporter",
+            text="Exporter",
             command=self.exporter,
-            style="Primary.TButton"
+            style="Secondary.TButton"
         ).pack(side="left", padx=5)
         
         # Frame principal
         main_content = Frame(self, bg=theme.Colors.BG_SECONDARY)
         main_content.pack(fill="both", expand=True, padx=20, pady=10)
+        main_content.columnconfigure(0, weight=1)
+        main_content.columnconfigure(1, minsize=260)
+        main_content.rowconfigure(0, weight=1)
         
         # Colonne gauche - Tableau et recherche
         left_frame = Frame(main_content, bg=theme.Colors.BG_SECONDARY)
-        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
         
         # Recherche
         search_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
         search_frame.pack(fill="x", pady=(0, 10))
+        Label(search_frame, text="Rechercher une moto", bg=theme.Colors.BG_SECONDARY,
+              fg=theme.Colors.TEXT_SECONDARY,
+              font=(theme.FONT_FAMILY, 10, "bold")).pack(anchor="w", pady=(0, 6))
         
         self.search_var = StringVar()
         search_entry = ttk.Entry(
             search_frame,
             textvariable=self.search_var,
-            font=("Arial", 12),
+            font=(theme.FONT_FAMILY, 11),
             style="Modern.TEntry"
         )
         search_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        search_entry.bind("<Return>", lambda event: self.rechercher())
         
         ttk.Button(
             search_frame,
-            text="🔍 Rechercher",
+            text="Rechercher",
             command=self.rechercher,
             style="Primary.TButton"
         ).pack(side="right")
@@ -98,18 +109,24 @@ class OwnersView(Frame):
         # Tableau
         tree_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
         tree_frame.pack(fill="both", expand=True)
+        tree_frame.columnconfigure(0, weight=1)
+        tree_frame.rowconfigure(0, weight=1)
         
         scrollbar = ttk.Scrollbar(tree_frame)
-        scrollbar.pack(side="right", fill="y")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        horizontal_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal")
+        horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
         
         self.tree = ttk.Treeview(
             tree_frame,
             columns=("nom", "prenom", "telephone", "code", "marque", "plaque", "couleur", "statut"),
             show="headings",
             height=15,
-            yscrollcommand=scrollbar.set
+            yscrollcommand=scrollbar.set,
+            xscrollcommand=horizontal_scrollbar.set
         )
         scrollbar.config(command=self.tree.yview)
+        horizontal_scrollbar.config(command=self.tree.xview)
         
         # Configuration des colonnes
         columns_config = [
@@ -124,19 +141,22 @@ class OwnersView(Frame):
         ]
         
         for col, heading, width in columns_config:
-            self.tree.heading(col, text=heading)
-            self.tree.column(col, width=width)
+            self.tree.heading(col, text=heading, anchor="w")
+            self.tree.column(col, width=width, minwidth=width, anchor="w")
         
-        self.tree.pack(fill="both", expand=True)
+        self.tree.grid(row=0, column=0, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
         
         # Colonne droite - Détails et image
-        right_frame = Frame(main_content, bg=theme.Colors.BG_SECONDARY, width=300)
-        right_frame.pack(side="right", fill="y", padx=(10, 0))
+        right_frame = Frame(main_content, bg=theme.Colors.BG_SECONDARY, width=260)
+        right_frame.grid(row=0, column=1, sticky="ns")
         right_frame.pack_propagate(False)
         
         # Image
-        img_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY, relief="solid", bd=2)
+        Label(right_frame, text="Fiche de la moto", font=(theme.FONT_FAMILY, 13, "bold"),
+              bg=theme.Colors.BG_SECONDARY, fg=theme.Colors.TEXT_PRIMARY).pack(anchor="w", pady=(0, 8))
+        img_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY,
+                          highlightbackground=theme.Colors.BORDER, highlightthickness=1)
         img_frame.pack(pady=10)
         
         try:
@@ -161,29 +181,31 @@ class OwnersView(Frame):
         # Bouton changer photo
         ttk.Button(
             right_frame,
-            text="📷 Changer Photo",
+            text="Changer la photo",
             command=self.change_photo,
-            style="Primary.TButton"
+            style="Secondary.TButton"
         ).pack(pady=5)
         
         # Zone de texte pour les détails
         self.zone_text = Text(
             right_frame,
-            font=('Arial', 12),
-            bg=theme.Colors.BG_SECONDARY,
+            font=(theme.FONT_FAMILY, 11),
+            bg=theme.Colors.BG_PRIMARY,
             fg=theme.Colors.TEXT_PRIMARY,
-            relief="solid",
-            bd=2,
+            relief="flat",
+            bd=0,
+            padx=14,
+            pady=14,
             wrap="word",
             height=12,
             width=30
         )
-        self.zone_text.pack(fill="both", expand=True, padx=10, pady=10)
-        self.zone_text.insert("end", "Sélectionnez une ligne pour voir les détails")
+        self.zone_text.pack(fill="both", expand=True, pady=10)
+        self.zone_text.insert("end", "Sélectionnez une moto dans le tableau pour consulter sa fiche.")
         self.zone_text.config(state="disabled")
     
     def afficher_owners(self):
-        """Affiche les propriétaires dans le tableau"""
+        """Affiche les usagers dans le tableau"""
         db = Bdonnee()
         owners = db.recuperer(2)
         
@@ -266,16 +288,16 @@ class OwnersView(Frame):
         """Affiche le formulaire de modification"""
         selected = self.tree.selection()
         if not selected:
-            messagebox.showwarning("Erreur", "Veuillez sélectionner un propriétaire.")
+            messagebox.showwarning("Erreur", "Veuillez sélectionner un usager.")
             return
         item_id = int(selected[0])
         self._show_owner_form(item_id)
     
     def supprimer(self):
-        """Supprime un propriétaire"""
+        """Supprime un usager"""
         selected = self.tree.selection()
         if not selected:
-            messagebox.showwarning("Erreur", "Veuillez sélectionner un propriétaire.")
+            messagebox.showwarning("Erreur", "Veuillez sélectionner un usager.")
             return
         
         item_id = int(selected[0])
@@ -285,13 +307,13 @@ class OwnersView(Frame):
         if messagebox.askyesno("Confirmation", f"Voulez-vous supprimer {nom_complet} ?"):
             db = Bdonnee()
             if db.supprimer(2, item_id):
-                messagebox.showinfo("Succès", "Propriétaire supprimé avec succès.")
+                messagebox.showinfo("Succès", "Usager supprimé avec succès.")
                 self.afficher_owners()
             else:
                 messagebox.showerror("Erreur", "Erreur lors de la suppression.")
     
     def rechercher(self):
-        """Recherche un propriétaire"""
+        """Recherche un usager"""
         valeur = self.search_var.get().strip()
         if not valeur:
             self.afficher_owners()
@@ -301,7 +323,7 @@ class OwnersView(Frame):
         owners = db.rechercher_owner(valeur)
         
         if not owners:
-            messagebox.showinfo("Info", "Aucun propriétaire trouvé.")
+            messagebox.showinfo("Info", "Aucun usager trouvé.")
             return
         
         for item in self.tree.get_children():
@@ -320,10 +342,10 @@ class OwnersView(Frame):
             ))
     
     def change_photo(self):
-        """Change la photo d'un propriétaire"""
+        """Change la photo d'un usager"""
         selected = self.tree.selection()
         if not selected:
-            messagebox.showwarning("Erreur", "Veuillez sélectionner un propriétaire.")
+            messagebox.showwarning("Erreur", "Veuillez sélectionner un usager.")
             return
         
         values = self.tree.item(selected[0])["values"]
@@ -338,29 +360,40 @@ class OwnersView(Frame):
         
         html_content = self._generate_html(liste_motards)
         
-        with open("motards.html", "w", encoding="utf-8") as f:
+        export_path = paths.EXPORTS_DIR / "motards.html"
+        with open(export_path, "w", encoding="utf-8") as f:
             f.write(html_content)
         
-        webbrowser.open("motards.html")
+        webbrowser.open(export_path.resolve().as_uri())
         messagebox.showinfo("Succès", "Données exportées avec succès.")
     
     def _generate_html(self, motards):
         """Génère le contenu HTML"""
-        # Code HTML simplifié (vous pouvez l'améliorer)
-        html = """<!DOCTYPE html>
+        html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Liste des Motos</title>
+    <title>{branding.APP_NAME} — Usagers du parking</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #1a237e; color: white; }
+        body {{ font-family: Arial, sans-serif; margin: 32px; color: #182f3d; }}
+        header {{ display: flex; align-items: center; gap: 20px; margin-bottom: 24px; }}
+        header img {{ width: 90px; height: 90px; object-fit: contain; }}
+        h1 {{ margin: 8px 0; color: #16566b; }}
+        p {{ margin: 4px 0; }}
+        table {{ border-collapse: collapse; width: 100%; }}
+        th, td {{ border: 1px solid #cedbe3; padding: 8px; text-align: left; }}
+        th {{ background-color: #16566b; color: white; }}
     </style>
 </head>
 <body>
-    <h1>Liste des Motos</h1>
+    <header>
+        <img src="{branding.logo_data_uri()}" alt="Logo de l’UKAG">
+        <div>
+            <p>{branding.UNIVERSITY_NAME}</p>
+            <h1>Usagers du parking</h1>
+            <p>{branding.APP_NAME} — Liste des motos</p>
+        </div>
+    </header>
     <table>
         <tr>
             <th>Nom</th><th>Prénom</th><th>Téléphone</th><th>Code Barre</th>
@@ -370,14 +403,14 @@ class OwnersView(Frame):
         for motard in motards:
             html += f"""
         <tr>
-            <td>{motard['nom']}</td>
-            <td>{motard['prenom']}</td>
-            <td>{motard['telephone']}</td>
-            <td>{motard['code_barre']}</td>
-            <td>{motard['marque']}</td>
-            <td>{motard['immatriculation']}</td>
-            <td>{motard['couleur']}</td>
-            <td>{motard['statut']}</td>
+            <td>{escape(str(motard['nom']))}</td>
+            <td>{escape(str(motard['prenom']))}</td>
+            <td>{escape(str(motard['telephone']))}</td>
+            <td>{escape(str(motard['code_barre']))}</td>
+            <td>{escape(str(motard['marque']))}</td>
+            <td>{escape(str(motard['immatriculation']))}</td>
+            <td>{escape(str(motard['couleur']))}</td>
+            <td>{escape(str(motard['statut']))}</td>
         </tr>
 """
         html += """
@@ -390,7 +423,7 @@ class OwnersView(Frame):
     def _show_owner_form(self, owner_id=None):
         """Affiche le formulaire d'ajout/modification"""
         dialog = Toplevel(self)
-        dialog.title("Ajouter un Propriétaire" if not owner_id else "Modifier un Propriétaire")
+        dialog.title("Ajouter un Usager" if not owner_id else "Modifier un Usager")
         dialog.geometry("600x700")
         dialog.config(bg=theme.Colors.BG_SECONDARY)
         dialog.grab_set()
@@ -432,14 +465,14 @@ class OwnersView(Frame):
         from app.components.modern_form import ModernForm
         form = ModernForm(
             dialog,
-            "Formulaire Propriétaire",
+            "Formulaire Usager",
             fields_config,
             "Enregistrer",
             lambda values: self._save_owner(values, owner_id, dialog)
         )
     
     def _save_owner(self, values, owner_id, dialog):
-        """Sauvegarde un propriétaire"""
+        """Sauvegarde un usager"""
         # Validation
         required_fields = ["nom", "prenom", "telephone", "plaque", "code_barre", "couleur", "statut"]
         for field in required_fields:
@@ -471,7 +504,7 @@ class OwnersView(Frame):
                 return
             
             if db.modifier(2, owner_id, nouvelles_valeurs):
-                messagebox.showinfo("Succès", "Propriétaire modifié avec succès.")
+                messagebox.showinfo("Succès", "Usager modifié avec succès.")
                 dialog.destroy()
                 self.afficher_owners()
             else:
@@ -494,7 +527,7 @@ class OwnersView(Frame):
                 values["couleur"],
                 values["statut"]
             ]):
-                messagebox.showinfo("Succès", "Propriétaire ajouté avec succès.")
+                messagebox.showinfo("Succès", "Usager ajouté avec succès.")
                 dialog.destroy()
                 self.afficher_owners()
             else:

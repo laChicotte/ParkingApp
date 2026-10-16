@@ -2,7 +2,7 @@ import os
 from tkinter import Label, Entry, Button, Toplevel, messagebox, ttk, StringVar, OptionMenu, Frame
 from PIL import Image, ImageTk
 import tkinter.font as tkFont
-from app.database.sqlite import Bdonnee  # Changer 'mysql' en 'sqlite' pour utiliser SQLite
+from app.database import Bdonnee
 from app.config import settings
 import bcrypt
 from app.config import paths

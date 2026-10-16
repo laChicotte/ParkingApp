@@ -4,7 +4,7 @@ Vue Historique modernisée avec tableau
 from tkinter import Frame, Label, Entry, Button, Text, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
-from app.database.sqlite import Bdonnee
+from app.database import Bdonnee
 from app.config import theme, paths
 
 
@@ -25,8 +25,8 @@ class HistoriqueView(Frame):
         
         title = Label(
             header_frame,
-            text="Historique des Entrées/Sorties",
-            font=("Arial", 24, "bold"),
+            text="Historique des mouvements",
+            font=(theme.FONT_FAMILY, 24, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY
         )
@@ -35,7 +35,7 @@ class HistoriqueView(Frame):
         # Bouton actualiser
         refresh_btn = ttk.Button(
             header_frame,
-            text="🔄 Actualiser",
+            text="Actualiser",
             command=self.afficher_historique,
             style="Primary.TButton"
         )
@@ -44,18 +44,25 @@ class HistoriqueView(Frame):
         # Frame principal avec tableau et détails
         main_content = Frame(self, bg=theme.Colors.BG_SECONDARY)
         main_content.pack(fill="both", expand=True, padx=20, pady=10)
+        main_content.columnconfigure(0, weight=1)
+        main_content.columnconfigure(1, minsize=260)
+        main_content.rowconfigure(0, weight=1)
         
         # Colonne gauche - Tableau
         left_frame = Frame(main_content, bg=theme.Colors.BG_SECONDARY)
-        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
         
         # Frame pour le tableau avec scrollbar
         tree_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
         tree_frame.pack(fill="both", expand=True)
+        tree_frame.columnconfigure(0, weight=1)
+        tree_frame.rowconfigure(0, weight=1)
         
         # Scrollbar
         scrollbar = ttk.Scrollbar(tree_frame)
-        scrollbar.pack(side="right", fill="y")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        horizontal_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal")
+        horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
         
         # Treeview
         self.tree = ttk.Treeview(
@@ -63,9 +70,11 @@ class HistoriqueView(Frame):
             columns=("date", "nom", "code", "telephone", "marque", "plaque", "etat", "heure"),
             show="headings",
             height=15,
-            yscrollcommand=scrollbar.set
+            yscrollcommand=scrollbar.set,
+            xscrollcommand=horizontal_scrollbar.set
         )
         scrollbar.config(command=self.tree.yview)
+        horizontal_scrollbar.config(command=self.tree.xview)
         
         # Configuration des colonnes
         self.tree.heading("date", text="Date")
@@ -86,16 +95,20 @@ class HistoriqueView(Frame):
         self.tree.column("etat", width=80)
         self.tree.column("heure", width=80)
         
-        self.tree.pack(fill="both", expand=True)
+        for column in self.tree["columns"]:
+            self.tree.heading(column, anchor="w")
+            self.tree.column(column, minwidth=self.tree.column(column, "width"), anchor="w")
+        self.tree.grid(row=0, column=0, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
         
         # Colonne droite - Détails
-        right_frame = Frame(main_content, bg=theme.Colors.BG_SECONDARY, width=300)
-        right_frame.pack(side="right", fill="y", padx=(10, 0))
+        right_frame = Frame(main_content, bg=theme.Colors.BG_SECONDARY, width=260)
+        right_frame.grid(row=0, column=1, sticky="ns")
         right_frame.pack_propagate(False)
         
         # Image
-        img_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY, relief="solid", bd=2)
+        img_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY,
+                          highlightbackground=theme.Colors.BORDER, highlightthickness=1)
         img_frame.pack(pady=10)
         
         try:
@@ -121,7 +134,7 @@ class HistoriqueView(Frame):
         details_label = Label(
             right_frame,
             text="Détails",
-            font=("Arial", 14, "bold"),
+            font=(theme.FONT_FAMILY, 14, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY
         )
@@ -129,11 +142,13 @@ class HistoriqueView(Frame):
         
         self.zone_text = Text(
             right_frame,
-            font=('Arial', 12),
-            bg=theme.Colors.BG_SECONDARY,
+            font=(theme.FONT_FAMILY, 12),
+            bg=theme.Colors.BG_PRIMARY,
             fg=theme.Colors.TEXT_PRIMARY,
-            relief="solid",
-            bd=2,
+            relief="flat",
+            bd=0,
+            padx=14,
+            pady=14,
             wrap="word",
             height=10,
             width=30

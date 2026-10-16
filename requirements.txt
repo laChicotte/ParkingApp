@@ -1,7 +1,7 @@
 # Dépendances pour l'application ParkingApp
 
 # Base de données MySQL/MariaDB
-pymysql>=1.1.0
+pymysql[rsa]>=1.1.0
 
 # Hachage de mots de passe
 bcrypt>=4.0.0

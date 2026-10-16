@@ -2,8 +2,8 @@
 Fenêtre de connexion modernisée
 """
 from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox
-from app.database.sqlite import Bdonnee
-from app.config import settings, theme
+from app.database import Bdonnee
+from app.config import settings, theme, branding
 from app.models.user import User
 
 
@@ -13,18 +13,20 @@ class ConnexionDialog:
     def __init__(self, parent, main_window):
         self.main_window = main_window
         self.dialog = Toplevel(parent)
-        self.dialog.title("Connexion")
-        self.dialog.geometry("500x500")
-        self.dialog.resizable(False, False)
+        self.dialog.title(f"Connexion — {branding.APP_NAME}")
+        self.dialog.geometry("520x700")
+        self.dialog.resizable(False, True)
+        self.dialog.minsize(520, 620)
         self.dialog.config(bg=theme.Colors.BG_SECONDARY)
         self.dialog.grab_set()
         self.dialog.focus_set()
         
         # Centrer la fenêtre
         self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (500 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (500 // 2)
-        self.dialog.geometry(f"500x500+{x}+{y}")
+        height = min(700, self.dialog.winfo_screenheight() - 80)
+        x = max(0, (self.dialog.winfo_screenwidth() - 520) // 2)
+        y = max(0, (self.dialog.winfo_screenheight() - height) // 2)
+        self.dialog.geometry(f"520x{height}+{x}+{y}")
         
         self.create_widgets()
     
@@ -36,24 +38,30 @@ class ConnexionDialog:
             bg=theme.Colors.BG_SECONDARY,
             relief="flat"
         )
-        main_frame.pack(fill="both", expand=True, padx=30, pady=30)
+        main_frame.pack(fill="both", expand=True, padx=24, pady=20)
+        self.logo = branding.load_logo(main_frame, (76, 76))
+        if self.logo:
+            Label(main_frame, image=self.logo, bg=theme.Colors.BG_SECONDARY).pack(pady=(0, 4))
         
         # Titre
         title_label = Label(
             main_frame,
-            text="Connexion",
-            font=("Arial", 28, "bold"),
+            text=f"Connexion à {branding.APP_NAME}",
+            font=(theme.FONT_FAMILY, 21, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY,
-            pady=20
+            pady=8
         )
         title_label.pack()
+        Label(main_frame, text=branding.UNIVERSITY_NAME, wraplength=450,
+              font=(theme.FONT_FAMILY, 11), bg=theme.Colors.BG_SECONDARY,
+              fg=theme.Colors.TEXT_SECONDARY).pack()
         
         # Sous-titre
         subtitle_label = Label(
             main_frame,
-            text="Connectez-vous pour accéder à l'application",
-            font=("Arial", 12),
+            text="Accédez à la gestion du parking universitaire",
+            font=(theme.FONT_FAMILY, 10),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_SECONDARY,
             pady=10
@@ -62,7 +70,7 @@ class ConnexionDialog:
         
         # Formulaire
         form_frame = Frame(main_frame, bg=theme.Colors.BG_SECONDARY)
-        form_frame.pack(fill="x", pady=30)
+        form_frame.pack(fill="x", pady=(14, 0))
         
         # Champ utilisateur
         user_container = Frame(form_frame, bg=theme.Colors.BG_SECONDARY)
@@ -71,7 +79,7 @@ class ConnexionDialog:
         user_label = Label(
             user_container,
             text="Nom d'utilisateur",
-            font=("Arial", 11, "bold"),
+            font=(theme.FONT_FAMILY, 11, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_PRIMARY,
             anchor="w"
@@ -80,7 +88,7 @@ class ConnexionDialog:
         
         self.user_entry = Entry(
             user_container,
-            font=("Arial", 13),
+            font=(theme.FONT_FAMILY, 13),
             bg="#ffffff",
             fg=theme.Colors.TEXT_PRIMARY,
             relief="solid",
@@ -100,7 +108,7 @@ class ConnexionDialog:
         password_label = Label(
             password_container,
             text="Mot de passe",
-            font=("Arial", 11, "bold"),
+            font=(theme.FONT_FAMILY, 11, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_PRIMARY,
             anchor="w"
@@ -110,7 +118,7 @@ class ConnexionDialog:
         self.password_entry = Entry(
             password_container,
             show='*',
-            font=("Arial", 13),
+            font=(theme.FONT_FAMILY, 13),
             bg="#ffffff",
             fg=theme.Colors.TEXT_PRIMARY,
             relief="solid",
@@ -127,7 +135,7 @@ class ConnexionDialog:
             form_frame,
             text="Se connecter",
             command=self.me_connecter,
-            font=("Arial", 14, "bold"),
+            font=(theme.FONT_FAMILY, 14, "bold"),
             bg=theme.Colors.PRIMARY,
             fg=theme.Colors.TEXT_LIGHT,
             activebackground=theme.Colors.PRIMARY_LIGHT,
@@ -148,8 +156,8 @@ class ConnexionDialog:
         # Info par défaut (pour SQLite)
         info_label = Label(
             main_frame,
-            text="Par défaut: admin / admin",
-            font=("Arial", 9),
+            text="Accès réservé aux personnes habilitées de l’UKAG.",
+            font=(theme.FONT_FAMILY, 9),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_SECONDARY,
             pady=10
@@ -190,7 +198,7 @@ class ConnexionDialog:
                     self.main_window.is_connected = settings.is_connected
                     self.main_window.current_user = settings.current_user
                     self.main_window.login_btn.config(text="🔓 Déconnexion", bg=theme.Colors.WARNING)
-                    self.main_window.login_btn.bind("<Enter>", lambda e: self.main_window.login_btn.config(bg="#ffb74d"))
+                    self.main_window.login_btn.bind("<Enter>", lambda e: self.main_window.login_btn.config(bg=theme.Colors.WARNING_HOVER))
                     self.main_window.login_btn.bind("<Leave>", lambda e: self.main_window.login_btn.config(bg=theme.Colors.WARNING))
                     self.main_window.user_label.config(
                         text=f"Connecté: {current_user.name()}"

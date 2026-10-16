@@ -4,7 +4,7 @@ Vue d'accueil modernisée - Gestion des entrées/sorties
 from tkinter import Frame, Label, Button, Text, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
-from app.database.sqlite import Bdonnee
+from app.database import Bdonnee
 from app.config import settings, theme, paths
 from app.utils.fonctions import today, convertir_caracteres_en_chiffres
 
@@ -26,18 +26,21 @@ class AccueilView(Frame):
         
         title_label = Label(
             title_frame,
-            text="Gestion des Entrées/Sorties",
-            font=("Arial", 24, "bold"),
+            text="Bienvenue au parking de l’UKAG",
+            font=(theme.FONT_FAMILY, 24, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY
         )
         title_label.pack()
+        Label(title_frame, text="Enregistrez les entrées et les sorties de la communauté universitaire.",
+              font=(theme.FONT_FAMILY, 11), bg=theme.Colors.BG_SECONDARY,
+              fg=theme.Colors.TEXT_SECONDARY).pack(pady=(6, 0))
         
         # Date du jour
         date_label = Label(
             title_frame,
             text=f"Le {today(1)}",
-            font=("Arial", 16),
+            font=(theme.FONT_FAMILY, 16),
             bg=theme.Colors.SUCCESS,
             fg=theme.Colors.TEXT_LIGHT,
             padx=20,
@@ -57,7 +60,7 @@ class AccueilView(Frame):
         self.encours = Label(
             left_frame,
             text="Scan arrêté",
-            font=('Arial', 18, "bold"),
+            font=(theme.FONT_FAMILY, 18, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_SECONDARY,
             pady=20
@@ -76,6 +79,10 @@ class AccueilView(Frame):
             self.entree_btn = Button(
                 buttons_frame,
                 image=self.icon_entree,
+                text="Enregistrer une entrée",
+                compound="top",
+                font=(theme.FONT_FAMILY, 11, "bold"),
+                fg=theme.Colors.TEXT_PRIMARY,
                 command=self.start_scanning,
                 relief="flat",
                 bg=theme.Colors.BG_SECONDARY,
@@ -85,9 +92,9 @@ class AccueilView(Frame):
         else:
             self.entree_btn = Button(
                 buttons_frame,
-                text="Entrée",
+                text="Enregistrer une entrée",
                 command=self.start_scanning,
-                font=("Arial", 14, "bold"),
+                font=(theme.FONT_FAMILY, 14, "bold"),
                 bg=theme.Colors.SUCCESS,
                 fg=theme.Colors.TEXT_LIGHT,
                 relief="flat",
@@ -102,6 +109,10 @@ class AccueilView(Frame):
             self.sortie_btn = Button(
                 buttons_frame,
                 image=self.icon_sortie,
+                text="Enregistrer une sortie",
+                compound="top",
+                font=(theme.FONT_FAMILY, 11, "bold"),
+                fg=theme.Colors.TEXT_PRIMARY,
                 command=self.action_sortie,
                 relief="flat",
                 bg=theme.Colors.BG_SECONDARY,
@@ -111,9 +122,9 @@ class AccueilView(Frame):
         else:
             self.sortie_btn = Button(
                 buttons_frame,
-                text="Sortie",
+                text="Enregistrer une sortie",
                 command=self.action_sortie,
-                font=("Arial", 14, "bold"),
+                font=(theme.FONT_FAMILY, 14, "bold"),
                 bg=theme.Colors.WARNING,
                 fg=theme.Colors.TEXT_LIGHT,
                 relief="flat",
@@ -128,6 +139,10 @@ class AccueilView(Frame):
             self.stop_btn = Button(
                 buttons_frame,
                 image=self.icon_stop,
+                text="Arrêter le scan",
+                compound="top",
+                font=(theme.FONT_FAMILY, 11, "bold"),
+                fg=theme.Colors.TEXT_PRIMARY,
                 command=self.stop_scanning,
                 state="disabled",
                 relief="flat",
@@ -141,7 +156,7 @@ class AccueilView(Frame):
                 text="Stop",
                 command=self.stop_scanning,
                 state="disabled",
-                font=("Arial", 14, "bold"),
+                font=(theme.FONT_FAMILY, 14, "bold"),
                 bg=theme.Colors.ERROR,
                 fg=theme.Colors.TEXT_LIGHT,
                 relief="flat",
@@ -173,7 +188,7 @@ class AccueilView(Frame):
                 img_frame,
                 text="Aucune image",
                 bg=theme.Colors.BG_SECONDARY,
-                font=("Arial", 14),
+                font=(theme.FONT_FAMILY, 14),
                 width=50,
                 height=15
             )
@@ -185,7 +200,7 @@ class AccueilView(Frame):
         
         self.zone_text = Text(
             details_frame,
-            font=('Arial', 16),
+            font=(theme.FONT_FAMILY, 16),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_PRIMARY,
             relief="solid",
@@ -198,11 +213,11 @@ class AccueilView(Frame):
         self.zone_text.config(state="disabled")
         
         # Champ caché pour capturer les entrées du scannage
-        self.hidden_entry = ttk.Entry(self, font=("Arial", 12))
+        self.hidden_entry = ttk.Entry(self, font=(theme.FONT_FAMILY, 12))
         self.hidden_entry.bind("<Return>", self.on_barcode_entry)
         self.hidden_entry.place(x=-100, y=-100)
         
-        self.hidden_entry1 = ttk.Entry(self, font=("Arial", 12))
+        self.hidden_entry1 = ttk.Entry(self, font=(theme.FONT_FAMILY, 12))
         self.hidden_entry1.bind("<Return>", self.on_barcode_exit)
         self.hidden_entry1.place(x=-200, y=-200)
     
@@ -212,7 +227,7 @@ class AccueilView(Frame):
             icon_path = paths.get_icon_path("enter.jpeg")
             if icon_path.exists():
                 img_entree = Image.open(str(icon_path))
-                img_entree = img_entree.resize((180, 80), Image.Resampling.LANCZOS)
+                img_entree = img_entree.resize((160, 64), Image.Resampling.LANCZOS)
                 self.icon_entree = ImageTk.PhotoImage(img_entree)
             else:
                 raise FileNotFoundError
@@ -224,7 +239,7 @@ class AccueilView(Frame):
             icon_path = paths.get_icon_path("exit.jpeg")
             if icon_path.exists():
                 img_sortie = Image.open(str(icon_path))
-                img_sortie = img_sortie.resize((180, 80), Image.Resampling.LANCZOS)
+                img_sortie = img_sortie.resize((160, 64), Image.Resampling.LANCZOS)
                 self.icon_sortie = ImageTk.PhotoImage(img_sortie)
             else:
                 raise FileNotFoundError
@@ -235,7 +250,7 @@ class AccueilView(Frame):
             icon_path = paths.get_icon_path("stop.png")
             if icon_path.exists():
                 img_stop = Image.open(str(icon_path))
-                img_stop = img_stop.resize((80, 80), Image.Resampling.LANCZOS)
+                img_stop = img_stop.resize((64, 64), Image.Resampling.LANCZOS)
                 self.icon_stop = ImageTk.PhotoImage(img_stop)
             else:
                 raise FileNotFoundError
@@ -321,7 +336,7 @@ class AccueilView(Frame):
             # Ajouter à l'historique
             etat = "Entrée" if is_entry else "Sortie"
             if not db.ajouter_historique(today(1), resultat['id'], etat, today(0)):
-                messagebox.showwarning("Échec", f"{etat} non enregistrée.")
+                messagebox.showwarning("Passage non enregistré", db.last_error or f"{etat} non enregistrée.")
             else:
                 messagebox.showinfo("Succès", f"{etat} enregistrée avec succès.")
         else:
@@ -330,11 +345,11 @@ class AccueilView(Frame):
     def set_photo(self, photo_nom):
         """Met à jour l'image affichée"""
         try:
-            # Essayer d'abord avec le nom de l'image
-            image_path = paths.get_image_path(f"{photo_nom}.png")
-            if not image_path.exists():
-                # Si pas trouvé, essayer sans extension
-                image_path = paths.get_image_path(photo_nom)
+            # Le scan fournit déjà un nom terminé par .png.
+            filename = str(photo_nom)
+            if not filename.lower().endswith(".png"):
+                filename += ".png"
+            image_path = paths.get_image_path(filename)
             if image_path.exists():
                 photo = Image.open(str(image_path))
                 photo.thumbnail((400, 300))

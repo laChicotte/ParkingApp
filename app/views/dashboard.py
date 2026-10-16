@@ -2,7 +2,7 @@ from tkinter import *
 from tkinter import ttk, messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
-from app.database.sqlite import Bdonnee  # Changer 'mysql' en 'sqlite' pour utiliser SQLite
+from app.database import Bdonnee
 from app.config import settings
 from PIL import Image, ImageTk
 from app.config import paths

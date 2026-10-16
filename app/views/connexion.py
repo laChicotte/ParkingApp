@@ -1,5 +1,5 @@
 from tkinter import Toplevel, Label, Entry, Button, messagebox, SUNKEN
-from app.database.sqlite import Bdonnee  # Changer 'mysql' en 'sqlite' pour utiliser SQLite
+from app.database import Bdonnee
 from app.config import settings
 import bcrypt
 

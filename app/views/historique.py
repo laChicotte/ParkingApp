@@ -1,4 +1,4 @@
-from app.database.sqlite import Bdonnee  # Changer 'mysql' en 'sqlite' pour utiliser SQLite 
+from app.database import Bdonnee
 from tkinter import Canvas, Label, Button, Entry, Text, filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 from app.config import settings
@@ -25,7 +25,7 @@ class ParkingApp:
         self.setup_ui()
         self.update_menu_state()
 
-        img_profil = Image.open(str(paths.get_icon_path("profil.png")))  
+        img_profil = Image.open(str(paths.get_icon_path("profil.png")))
         img_profil = img_profil.resize((70, 70), Image.Resampling.LANCZOS)
         self.icon_profil = ImageTk.PhotoImage(img_profil)
         # Charger les widgets principaux
@@ -34,8 +34,8 @@ class ParkingApp:
             name = settings.current_user.name()
         except:
             name ="Anonyme"
-        
-        self.profil = Button(root, text=f"{name}", image=self.icon_profil, compound="top", 
+
+        self.profil = Button(root, text=f"{name}", image=self.icon_profil, compound="top",
                              font=("Arial", 10), bg='#091821', fg='white', command=self._login_logout)
         self.profil.place(relx=1.0, y=0, anchor="ne")
 
@@ -73,7 +73,7 @@ class ParkingApp:
         Entry(self.canvas, font=('Arial', 14)).place(x=680+x, y=160+y, width=220)
         Button(self.canvas, text="Rechercher", font=('Arial', 14), bg="blue", fg="white", command=self.rechercher).place(
             x=680+x, y=200+y, width=220)
-        
+
 
         # Boutton de navigation
         x=-60
@@ -94,7 +94,7 @@ class ParkingApp:
         self.user = Button(self.canvas, text="Utilisateur", bg="#235F42", font=("Times New Roman", 26), command=self._user_page)
         self.user.place(x=700+x, y=500+y, width=170, height=50)
 
-        
+
         self.tree = ttk.Treeview(self.canvas, columns=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10), height=10, show="headings")
         self.tree.heading(1, text="ID")
         self.tree.heading(2, text="Dates")
@@ -122,7 +122,7 @@ class ParkingApp:
         self.tree.place(x=60, y=40, height=250, width=780)
         self.tree.bind("<<TreeviewSelect>>", self.tree_select)
 
-        
+
         # Zone de texte pour les informations
         self.zone_text = Text(self.canvas, font=('Arial', 12))
         self.zone_text.place(x=20, y=320, width=400, height=150)
@@ -184,7 +184,7 @@ class ParkingApp:
             self.zone_text.delete("1.0", "end")
             self.zone_text.insert("end", "Nom : {}\nTélephone : {}\nMarque : {}\nPlaque : {}\nCode Barre : {}\nStatut : {}".format(
                 values[2], values[4], values[5], values[6], str(values[3]).zfill(6), statut))
-            
+
 
             self.zone_text.config(state="disabled")
             # Zone pour afficher la photo par défaut
@@ -225,10 +225,10 @@ class ParkingApp:
             self.tree.insert("", "end", values=(
                 i, ligne['date'],
                 prenom_nom, str(ligne['code_barre']), ligne['telephone'],
-                ligne['marque'], ligne['immatriculation'], 
+                ligne['marque'], ligne['immatriculation'],
                 ligne['etat'], ligne['heure'], ligne['historique_id']
             ))
-    
+
     def _user_page(self):
         if not settings.current_user.is_admin():
             messagebox.showwarning("Alerte", "Seul l'admin peut acceder à cette page")

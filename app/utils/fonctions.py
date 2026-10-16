@@ -2,7 +2,7 @@
 # from subprocess import *
 import os
 from tkinter import *
-from datetime import datetime 
+from datetime import datetime
 from tkinter import messagebox
 import cv2
 test = False
@@ -29,19 +29,19 @@ def today(n):
     if n == 1:
         # Retoune la date sous le format d'une chaine de : 20-07-2020
         return str(presently.strftime('%d-%m-%Y'))
-   
-    
-def convertir_caracteres_en_chiffres(code):    
+
+
+def convertir_caracteres_en_chiffres(code):
     # Dictionnaire de correspondance entre les caractères spéciaux et les chiffres
     try:
         int(code)
         return str(code).zfill(6)
     except:
         mapping = {
-            'à': '0', '&': '1', 'é': '2', '"': '3', "'": '4', '(': '5', 
+            'à': '0', '&': '1', 'é': '2', '"': '3', "'": '4', '(': '5',
             '-': '6', 'è': '7', '_': '8', 'ç': '9'
         }
-        
+
         # Convertir chaque caractère de la chaîne
         chiffres = ""
         for char in code:
@@ -81,7 +81,7 @@ def capture_with_preview(image_name):
             resized_frame = cv2.resize(frame, (722, 712))
             # Chemin de sauvegarde dans le sous-dossier 'images'
             from app.config import paths
-            image_path = paths.get_image_path(f"{image_name}.png")
+            image_path = paths.get_image_save_path(f"{image_name}.png")
             file_path = str(image_path)
 
             # Enregistrer l'image

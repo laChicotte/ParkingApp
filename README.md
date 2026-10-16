@@ -12,7 +12,7 @@ ParkingApp/
 │   │   └── paths.py       # Gestion centralisée des chemins
 │   ├── database/          # Modules de base de données
 │   │   ├── mysql.py       # Connexion MySQL/MariaDB
-│   │   └── sqlite.py      # Connexion SQLite (par défaut)
+│   │   └── sqlite.py      # Ancien module SQLite
 │   ├── models/            # Modèles de données
 │   │   └── user.py        # Modèle utilisateur
 │   ├── views/             # Interfaces utilisateur (GUI)
@@ -79,9 +79,9 @@ python3 -m app.main
 
 ### Configuration de la base de données
 
-L'application utilise **SQLite par défaut** (aucune configuration requise). La base de données sera créée automatiquement dans `parking.db`.
+L'application utilise **MySQL/MariaDB** via le point d'accès commun `app.database`. Elle lit les identifiants dans `resources/config/config.json`, ignoré par Git.
 
-Pour utiliser **MySQL/MariaDB** :
+Pour préparer la connexion :
 
 1. Copier le template de configuration :
    ```bash
@@ -91,20 +91,47 @@ Pour utiliser **MySQL/MariaDB** :
 2. Modifier `resources/config/config.json` avec vos paramètres :
    ```json
    {
-       "host": "localhost",
-       "user": "root",
+       "host": "127.0.0.1",
+       "port": 3306,
+       "user": "parkingapp",
        "password": "votre_mot_de_passe",
-       "db_name": "parking_db"
+       "db_name": "parkingapp"
    }
    ```
 
-3. Changer les imports dans les fichiers de vues :
-   - Remplacer `from app.database.sqlite import Bdonnee` 
-   - Par `from app.database.mysql import Bdonnee`
+3. Démarrer MySQL avant l'application. La base configurée doit déjà exister et l'utilisateur doit pouvoir y créer les tables.
 
-### Utilisateur par défaut (SQLite)
+4. Depuis PowerShell, à la racine de ParkingApp :
+   ```powershell
+   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+   .\.venv\Scripts\python.exe run.py
+   ```
 
-Lors du premier lancement avec SQLite, un utilisateur administrateur est créé automatiquement :
+Au démarrage, les tables `users`, `owners` et `historique` sont créées si elles n'existent pas. Si la configuration ou la connexion échoue, le lancement s'arrête avec une erreur dans le terminal. L'application ne revient pas automatiquement à SQLite.
+
+Les anciennes données de `parking.db` ne sont pas transférées automatiquement. Les identifiants MySQL donnent accès au serveur de base de données ; les comptes de connexion à ParkingApp sont stockés séparément dans `users`.
+
+### Import d'un ancien dump phpMyAdmin
+
+Le script importe les données de `users`, `owners` et `historique` dans les tables existantes. Il exige des tables vides, conserve les identifiants et les mots de passe hachés, et vérifie le contenu avant de valider la transaction. Les instructions de structure du dump ne sont pas exécutées.
+
+Analyser le fichier sans toucher à la base :
+
+```powershell
+.\.venv\Scripts\python.exe scripts\import_mysql_dump.py "D:\mybase.sql"
+```
+
+Effectuer l'import :
+
+```powershell
+.\.venv\Scripts\python.exe scripts\import_mysql_dump.py "D:\mybase.sql" --apply
+```
+
+Les dates anciennes à `0000-00-00` sont conservées comme dates inconnues. Elles ne contribuent pas aux statistiques par jour. Après l'import, utilisez les comptes ParkingApp de l'ancienne base et leurs mots de passe habituels.
+
+### Ancien utilisateur par défaut (SQLite)
+
+L'ancien module SQLite créait automatiquement cet administrateur, qui n'est pas créé dans MySQL :
 - **Username :** `admin`
 - **Password :** `admin`
 
@@ -112,11 +139,34 @@ Lors du premier lancement avec SQLite, un utilisateur administrateur est créé 
 
 ## 📦 Dépendances
 
+### Version Windows installable
+
+L'installateur est généré dans `dist/installer/UKAGParking-Setup-1.0.1-x64.exe`.
+Il inclut Python et les dépendances de l'application. Sur chaque poste Windows
+64 bits, démarrer MySQL dans XAMPP puis lancer UKAG Parking. Le premier lancement
+propose la configuration MySQL et la création d'un administrateur pour une base vide.
+
+La version installée conserve ses paramètres, photos et exports dans
+`%LOCALAPPDATA%\UKAG Parking`, indépendamment du dossier du programme. Les données
+MySQL et les photos existantes doivent être transférées séparément. Voir
+[`installer/INSTALLATION-WINDOWS.txt`](installer/INSTALLATION-WINDOWS.txt).
+
+Pour reconstruire l'exécutable et l'installateur :
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
+powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1 -Installer
+```
+
+Le compilateur Inno Setup 6 doit être disponible. On peut préciser son chemin avec
+`-InnoCompiler "C:\chemin\ISCC.exe"`. La compilation n'embarque ni `config.json`,
+ni la base SQLite, ni les photos des usagers.
+
 - `bcrypt` - Hachage de mots de passe
 - `Pillow` - Traitement d'images
 - `matplotlib` - Graphiques et visualisation
 - `opencv-python` - Capture vidéo/webcam
-- `pymysql` - (Optionnel) Pour MySQL/MariaDB
+- `pymysql[rsa]` - Connexion MySQL/MariaDB et authentification MySQL 8
 
 ## 🔧 Fonctionnalités
 

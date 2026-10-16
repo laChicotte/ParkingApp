@@ -17,7 +17,7 @@ class ModernFormField:
         self.label = Label(
             self.frame,
             text=label_text,
-            font=("Arial", 11, "bold"),
+            font=(theme.FONT_FAMILY, 11, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.TEXT_PRIMARY,
             anchor="w"
@@ -28,7 +28,7 @@ class ModernFormField:
         if field_type == "entry":
             self.entry = Entry(
                 self.frame,
-                font=("Arial", 13),
+                font=(theme.FONT_FAMILY, 13),
                 bg="#ffffff",
                 fg=theme.Colors.TEXT_PRIMARY,
                 relief="solid",
@@ -46,7 +46,7 @@ class ModernFormField:
             self.entry = Entry(
                 self.frame,
                 show="*",
-                font=("Arial", 13),
+                font=(theme.FONT_FAMILY, 13),
                 bg="#ffffff",
                 fg=theme.Colors.TEXT_PRIMARY,
                 relief="solid",
@@ -76,7 +76,7 @@ class ModernFormField:
                 *options
             )
             self.option.config(
-                font=("Arial", 12),
+                font=(theme.FONT_FAMILY, 12),
                 bg="#ffffff",
                 fg=theme.Colors.TEXT_PRIMARY,
                 relief="solid",
@@ -140,7 +140,7 @@ class ModernForm:
         title_label = Label(
             self.form_frame,
             text=title,
-            font=("Arial", 22, "bold"),
+            font=(theme.FONT_FAMILY, 22, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY,
             pady=20
@@ -174,10 +174,10 @@ class ModernForm:
             buttons_frame,
             text=submit_text,
             command=self._on_submit,
-            font=("Arial", 13, "bold"),
+            font=(theme.FONT_FAMILY, 13, "bold"),
             bg=theme.Colors.SUCCESS,
             fg=theme.Colors.TEXT_LIGHT,
-            activebackground="#66bb6a",
+            activebackground=theme.Colors.SUCCESS_HOVER,
             activeforeground=theme.Colors.TEXT_LIGHT,
             relief="flat",
             cursor="hand2",
@@ -186,17 +186,17 @@ class ModernForm:
             width=20
         )
         submit_btn.pack(side="left", padx=10)
-        submit_btn.bind("<Enter>", lambda e: submit_btn.config(bg="#66bb6a"))
+        submit_btn.bind("<Enter>", lambda e: submit_btn.config(bg=theme.Colors.SUCCESS_HOVER))
         submit_btn.bind("<Leave>", lambda e: submit_btn.config(bg=theme.Colors.SUCCESS))
         
         cancel_btn = Button(
             buttons_frame,
             text="Annuler",
             command=self._on_cancel,
-            font=("Arial", 13, "bold"),
+            font=(theme.FONT_FAMILY, 13, "bold"),
             bg=theme.Colors.BTN_DANGER,
             fg=theme.Colors.TEXT_LIGHT,
-            activebackground="#ef5350",
+            activebackground=theme.Colors.ERROR_HOVER,
             activeforeground=theme.Colors.TEXT_LIGHT,
             relief="flat",
             cursor="hand2",
@@ -205,7 +205,7 @@ class ModernForm:
             width=20
         )
         cancel_btn.pack(side="right", padx=10)
-        cancel_btn.bind("<Enter>", lambda e: cancel_btn.config(bg="#ef5350"))
+        cancel_btn.bind("<Enter>", lambda e: cancel_btn.config(bg=theme.Colors.ERROR_HOVER))
         cancel_btn.bind("<Leave>", lambda e: cancel_btn.config(bg=theme.Colors.BTN_DANGER))
         
         # Pack canvas et scrollbar

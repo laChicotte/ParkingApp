@@ -4,7 +4,7 @@ Vue Gestion des Utilisateurs modernisée
 from tkinter import Frame, Label, Toplevel, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
-from app.database.sqlite import Bdonnee
+from app.database import Bdonnee
 from app.config import theme, paths, settings
 from app.components.modern_form import ModernForm
 import bcrypt
@@ -27,34 +27,34 @@ class UserManagementView(Frame):
         
         title = Label(
             header_frame,
-            text="Gestion des Utilisateurs",
-            font=("Arial", 24, "bold"),
+            text="Comptes d’accès",
+            font=(theme.FONT_FAMILY, 24, "bold"),
             bg=theme.Colors.BG_SECONDARY,
             fg=theme.Colors.PRIMARY
         )
-        title.pack(side="left")
+        title.pack(anchor="w")
         
         # Boutons d'action
-        actions_frame = Frame(header_frame, bg=theme.Colors.BG_SECONDARY)
-        actions_frame.pack(side="right")
+        actions_frame = Frame(self, bg=theme.Colors.BG_SECONDARY)
+        actions_frame.pack(fill="x", padx=15, pady=(8, 12))
         
         ttk.Button(
             actions_frame,
-            text="➕ Ajouter",
+            text="Ajouter un utilisateur",
             command=self.add_user,
             style="Success.TButton"
         ).pack(side="left", padx=5)
         
         ttk.Button(
             actions_frame,
-            text="✏️ Modifier",
+            text="Modifier",
             command=self.edit_user,
             style="Primary.TButton"
         ).pack(side="left", padx=5)
         
         ttk.Button(
             actions_frame,
-            text="🗑️ Supprimer",
+            text="Supprimer",
             command=self.delete_user,
             style="Danger.TButton"
         ).pack(side="left", padx=5)
@@ -62,26 +62,35 @@ class UserManagementView(Frame):
         # Frame principal
         main_content = Frame(self, bg=theme.Colors.BG_SECONDARY)
         main_content.pack(fill="both", expand=True, padx=20, pady=10)
+        main_content.columnconfigure(0, weight=1)
+        main_content.columnconfigure(1, minsize=250)
+        main_content.rowconfigure(0, weight=1)
         
         # Colonne gauche - Tableau
         left_frame = Frame(main_content, bg=theme.Colors.BG_SECONDARY)
-        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
         
         # Tableau
         tree_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
         tree_frame.pack(fill="both", expand=True)
+        tree_frame.columnconfigure(0, weight=1)
+        tree_frame.rowconfigure(0, weight=1)
         
         scrollbar = ttk.Scrollbar(tree_frame)
-        scrollbar.pack(side="right", fill="y")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        horizontal_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal")
+        horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
         
         self.tree = ttk.Treeview(
             tree_frame,
             columns=("username", "nom", "prenom", "telephone", "email", "role"),
             show="headings",
             height=18,
-            yscrollcommand=scrollbar.set
+            yscrollcommand=scrollbar.set,
+            xscrollcommand=horizontal_scrollbar.set
         )
         scrollbar.config(command=self.tree.yview)
+        horizontal_scrollbar.config(command=self.tree.xview)
         
         # Configuration des colonnes
         columns_config = [
@@ -94,19 +103,20 @@ class UserManagementView(Frame):
         ]
         
         for col, heading, width in columns_config:
-            self.tree.heading(col, text=heading)
-            self.tree.column(col, width=width)
+            self.tree.heading(col, text=heading, anchor="w")
+            self.tree.column(col, width=width, minwidth=width, anchor="w")
         
-        self.tree.pack(fill="both", expand=True)
+        self.tree.grid(row=0, column=0, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
         
         # Colonne droite - Image
         right_frame = Frame(main_content, bg=theme.Colors.BG_SECONDARY, width=250)
-        right_frame.pack(side="right", fill="y", padx=(10, 0))
+        right_frame.grid(row=0, column=1, sticky="ns")
         right_frame.pack_propagate(False)
         
         # Image
-        img_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY, relief="solid", bd=2)
+        img_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY,
+                          highlightbackground=theme.Colors.BORDER, highlightthickness=1)
         img_frame.pack(pady=20)
         
         try:
