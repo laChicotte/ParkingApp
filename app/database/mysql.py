@@ -51,7 +51,8 @@ class Bdonnee:
             write_timeout=10
         )
     
-    def ajouter(self, indice_table, donnees):
+    def ajouter(self, indice_table, donnees, notify=True):
+        self.last_error = ""
         try:
             table_name = self.tables[indice_table]
             placeholders = ", ".join(["%s"] * len(donnees))
@@ -63,10 +64,13 @@ class Bdonnee:
                 conn.commit()
             return True
         except pymysql.MySQLError as e:
-            messagebox.showerror("Erreur", f"Erreur lors de l'ajout : {e}")
+            self.last_error = f"Erreur lors de l'ajout : {e}"
+            if notify:
+                messagebox.showerror("Erreur", self.last_error)
             return False
 
-    def modifier(self, indice_table, row_id, nouvelles_valeurs):
+    def modifier(self, indice_table, row_id, nouvelles_valeurs, notify=True):
+        self.last_error = ""
         try:
             table_name = self.tables[indice_table]
             colonnes_str = ", ".join(f"{col} = %s" for col in nouvelles_valeurs.keys())
@@ -80,7 +84,9 @@ class Bdonnee:
                 conn.commit()
             return True
         except pymysql.MySQLError as e:
-            messagebox.showerror("Erreur", f"Erreur lors de la modification : {e}")
+            self.last_error = f"Erreur lors de la modification : {e}"
+            if notify:
+                messagebox.showerror("Erreur", self.last_error)
             return False
 
     def supprimer(self, indice_table, row_id):
@@ -164,7 +170,8 @@ class Bdonnee:
                 f"sur {self.host}:{self.port} : {e}"
             ) from e
 
-    def rechercher_par_code_barre(self, code_barre):
+    def rechercher_par_code_barre(self, code_barre, notify=True):
+        self.last_error = ""
         try:
             with self._connecter() as conn:
                 with conn.cursor(pymysql.cursors.DictCursor) as cursor:
@@ -173,7 +180,9 @@ class Bdonnee:
                     row = cursor.fetchone()
             return row
         except pymysql.MySQLError as e:
-            messagebox.showerror("Erreur", f"Erreur lors de la recherche : {e}")
+            self.last_error = f"Erreur lors de la recherche : {e}"
+            if notify:
+                messagebox.showerror("Erreur", self.last_error)
             return None
 
     def ajouter_historique(self, date, owner_id, etat, heure):
@@ -418,24 +427,28 @@ class Bdonnee:
         return entries_by_day
 
 
-    def verifier_existence(self, code_barre, immatriculation):
-        """Vérifie si le code-barres ou l'immatriculation existent déjà dans la table owners."""
+    def verifier_existence(self, code_barre, immatriculation, exclude_id=None):
+        """Cherche les doublons, hors de l'usager modifié si son ID est fourni."""
         try:
             with self._connecter() as conn:
                 with conn.cursor() as cursor:
                     query = """
-                        SELECT code_barre, immatriculation 
+                        SELECT code_barre = %s, immatriculation = %s
                         FROM owners 
-                        WHERE code_barre = %s OR immatriculation = %s
+                        WHERE (code_barre = %s OR immatriculation = %s)
                     """
-                    cursor.execute(query, (code_barre, immatriculation))
+                    params = (code_barre, immatriculation, code_barre, immatriculation)
+                    if exclude_id is not None:
+                        query += " AND id <> %s"
+                        params += (exclude_id,)
+                    cursor.execute(query, params)
                     rows = cursor.fetchall()
 
             messages = []
             for row in rows:
-                if row[0] == code_barre:
+                if row[0] and "Le code-barre existe déjà." not in messages:
                     messages.append("Le code-barre existe déjà.")
-                if row[1] == immatriculation:
+                if row[1] and "L'immatriculation existe déjà." not in messages:
                     messages.append("L'immatriculation existe déjà.")
 
             return (True, "\n".join(messages)) if messages else (False, "")
@@ -445,8 +458,9 @@ class Bdonnee:
 
 
 
-    def get_user(self, username):
+    def get_user(self, username, notify=True):
         """Récupère un utilisateur à partir de son username."""
+        self.last_error = ""
         try:
             with self._connecter() as conn:
                 with conn.cursor(pymysql.cursors.DictCursor) as cursor:
@@ -456,19 +470,36 @@ class Bdonnee:
                     
                     return row if row else None
         except pymysql.MySQLError as e:
-            messagebox.showerror("Erreur", f"Erreur lors de la recherche : {e}")
+            self.last_error = f"Erreur lors de la recherche : {e}"
+            if notify:
+                messagebox.showerror("Erreur", self.last_error)
             return None
 
 
-    def rechercher_owner(self, param):
-        """Recherche un propriétaire par code-barre ou téléphone"""
+    def rechercher_owner(self, param, notify=True):
+        """Recherche partielle par identité, matricule, téléphone, plaque ou code."""
+        self.last_error = ""
+        columns = ("nom", "prenom", "matricule", "telephone", "immatriculation", "code_barre")
+        conditions = []
+        params = []
+        for word in str(param).split():
+            # Les caractères saisis restent littéraux, même % et _.
+            pattern = "%" + word.replace("=", "==").replace("%", "=%").replace("_", "=_") + "%"
+            conditions.append("(" + " OR ".join(
+                f"LOWER({column}) LIKE LOWER(%s) ESCAPE '='" for column in columns) + ")")
+            params.extend([pattern] * len(columns))
         try:
             with self._connecter() as conn:
                 with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                    query = "SELECT * FROM owners WHERE code_barre = %s OR telephone = %s"
-                    cursor.execute(query, (param, param))
+                    query = "SELECT * FROM owners"
+                    if conditions:
+                        query += " WHERE " + " AND ".join(conditions)
+                    query += " ORDER BY nom, prenom, id"
+                    cursor.execute(query, tuple(params))
                     result = cursor.fetchall()
                     return result if result else [] # Retourne résultat
         except pymysql.MySQLError as e:
-            messagebox.showerror("Erreur", f"Erreur SQL : {e}")
+            self.last_error = f"Erreur SQL : {e}"
+            if notify:
+                messagebox.showerror("Erreur", self.last_error)
             return []

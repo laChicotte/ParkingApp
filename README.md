@@ -139,29 +139,6 @@ L'ancien module SQLite créait automatiquement cet administrateur, qui n'est pas
 
 ## 📦 Dépendances
 
-### Version Windows installable
-
-L'installateur est généré dans `dist/installer/UKAGParking-Setup-1.0.1-x64.exe`.
-Il inclut Python et les dépendances de l'application. Sur chaque poste Windows
-64 bits, démarrer MySQL dans XAMPP puis lancer UKAG Parking. Le premier lancement
-propose la configuration MySQL et la création d'un administrateur pour une base vide.
-
-La version installée conserve ses paramètres, photos et exports dans
-`%LOCALAPPDATA%\UKAG Parking`, indépendamment du dossier du programme. Les données
-MySQL et les photos existantes doivent être transférées séparément. Voir
-[`installer/INSTALLATION-WINDOWS.txt`](installer/INSTALLATION-WINDOWS.txt).
-
-Pour reconstruire l'exécutable et l'installateur :
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
-powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1 -Installer
-```
-
-Le compilateur Inno Setup 6 doit être disponible. On peut préciser son chemin avec
-`-InnoCompiler "C:\chemin\ISCC.exe"`. La compilation n'embarque ni `config.json`,
-ni la base SQLite, ni les photos des usagers.
-
 - `bcrypt` - Hachage de mots de passe
 - `Pillow` - Traitement d'images
 - `matplotlib` - Graphiques et visualisation
@@ -178,6 +155,19 @@ ni la base SQLite, ni les photos des usagers.
 - ✅ Gestion des utilisateurs et permissions
 - ✅ Capture de photos via webcam
 - ✅ Export des données en HTML
+
+## Droits d'accès
+
+| Fonction | Sans connexion | Agent de parking | Administrateur |
+|---|---|---|---|
+| Scanner une entrée/sortie et voir la fiche scannée | Oui | Oui | Oui |
+| Consulter et rechercher les usagers/motos | Non | Oui | Oui |
+| Consulter l'historique complet et le tableau de bord | Non | Oui | Oui |
+| Ajouter, modifier les usagers/motos et changer les photos | Non | Oui | Oui |
+| Supprimer ou exporter les données | Non | Non | Oui |
+| Gérer les comptes | Non | Non | Oui |
+
+Les actions interdites restent grisées. Sans connexion, les listes privées ne sont pas chargées. La déconnexion revient à l'accueil et efface la fiche affichée. Les comptes de rôle `0` sont désormais nommés « Agent de parking » ; leurs identifiants et mots de passe restent identiques.
 
 ## 📝 Notes
 

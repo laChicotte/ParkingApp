@@ -77,7 +77,7 @@ class Theme:
             text_color = Colors.TEXT_PRIMARY if name == "Secondary.TButton" else Colors.TEXT_LIGHT
             style.configure(name, background=base, foreground=text_color,
                             bordercolor=base, lightcolor=base, darkcolor=base,
-                            padding=(16, 10), font=(FONT_FAMILY, 10, "bold"),
+                            padding=(14, 9), font=(FONT_FAMILY, 10, "bold"),
                             relief="flat", borderwidth=1, anchor="center",
                             focuscolor=text_color, focusthickness=1)
             style.map(name,
@@ -88,6 +88,17 @@ class Theme:
                       darkcolor=[("pressed", pressed), ("active", hover)])
         
         # Style pour les frames
+        for name in ("Form.TEntry", "Form.TCombobox"):
+            style.configure(name, fieldbackground=Colors.BG_PRIMARY,
+                            foreground=Colors.TEXT_PRIMARY, insertcolor=Colors.TEXT_PRIMARY,
+                            bordercolor=Colors.BORDER, lightcolor=Colors.BORDER,
+                            darkcolor=Colors.BORDER, borderwidth=1, padding=9,
+                            arrowsize=14, arrowcolor=Colors.TEXT_SECONDARY)
+            style.map(name, bordercolor=[("invalid", Colors.ERROR), ("focus", Colors.ACCENT)],
+                      lightcolor=[("invalid", Colors.ERROR), ("focus", Colors.ACCENT)],
+                      darkcolor=[("invalid", Colors.ERROR), ("focus", Colors.ACCENT)],
+                      fieldbackground=[("readonly", Colors.BG_PRIMARY)])
+
         style.configure(
             "Card.TFrame",
             background=Colors.BG_SECONDARY,

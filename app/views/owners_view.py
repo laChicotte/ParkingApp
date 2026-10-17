@@ -5,11 +5,15 @@ from tkinter import Frame, Label, Entry, Button, Text, Toplevel, messagebox, Str
 from tkinter import ttk
 from PIL import Image, ImageTk
 from app.database import Bdonnee
+from app.components.icon_button import IconButton
+from app.components.modern_form import configure_dialog, report_form_error
 from app.config import theme, paths, branding
+from app.config.permissions import has_permission, requires_permission
 from html import escape
 from app.utils.fonctions import convertir_caracteres_en_chiffres, capture_with_preview
 import webbrowser
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 
 class OwnersView(Frame):
@@ -18,59 +22,19 @@ class OwnersView(Frame):
     def __init__(self, parent, main_window):
         super().__init__(parent, bg=theme.Colors.BG_SECONDARY)
         self.main_window = main_window
+        self._search_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="owner-search")
+        self._search_job = None
+        self._search_poll = None
+        self._search_future = None
+        self._search_generation = 0
+        if not has_permission("view_owners"):
+            return
         self.setup_ui()
         self.afficher_owners()
+        self.search_var.trace_add("write", self._schedule_search)
     
     def setup_ui(self):
         """Configure l'interface"""
-        # Titre et barre d'outils
-        header_frame = Frame(self, bg=theme.Colors.BG_SECONDARY)
-        header_frame.pack(fill="x", padx=20, pady=10)
-        
-        title = Label(
-            header_frame,
-            text="Usagers et motos",
-            font=(theme.FONT_FAMILY, 24, "bold"),
-            bg=theme.Colors.BG_SECONDARY,
-            fg=theme.Colors.PRIMARY
-        )
-        title.pack(anchor="w")
-        Label(header_frame, text="Étudiants, enseignants et personnel : les usagers du parking de l’UKAG.",
-              font=(theme.FONT_FAMILY, 11), bg=theme.Colors.BG_SECONDARY,
-              fg=theme.Colors.TEXT_SECONDARY).pack(anchor="w", pady=(4, 0))
-        
-        # Boutons d'action
-        actions_frame = Frame(self, bg=theme.Colors.BG_SECONDARY)
-        actions_frame.pack(fill="x", padx=15, pady=(8, 12))
-        
-        ttk.Button(
-            actions_frame,
-            text="Ajouter une moto",
-            command=self.add_owner,
-            style="Success.TButton"
-        ).pack(side="left", padx=5)
-        
-        ttk.Button(
-            actions_frame,
-            text="Modifier",
-            command=self.update_owner,
-            style="Primary.TButton"
-        ).pack(side="left", padx=5)
-        
-        ttk.Button(
-            actions_frame,
-            text="Supprimer",
-            command=self.supprimer,
-            style="Danger.TButton"
-        ).pack(side="left", padx=5)
-        
-        ttk.Button(
-            actions_frame,
-            text="Exporter",
-            command=self.exporter,
-            style="Secondary.TButton"
-        ).pack(side="left", padx=5)
-        
         # Frame principal
         main_content = Frame(self, bg=theme.Colors.BG_SECONDARY)
         main_content.pack(fill="both", expand=True, padx=20, pady=10)
@@ -85,26 +49,46 @@ class OwnersView(Frame):
         # Recherche
         search_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
         search_frame.pack(fill="x", pady=(0, 10))
-        Label(search_frame, text="Rechercher une moto", bg=theme.Colors.BG_SECONDARY,
+        Label(search_frame, text="Rechercher un usager ou une moto", bg=theme.Colors.BG_SECONDARY,
               fg=theme.Colors.TEXT_SECONDARY,
               font=(theme.FONT_FAMILY, 10, "bold")).pack(anchor="w", pady=(0, 6))
+        search_help = Label(search_frame,
+                            text="Recherche automatique : nom, prénom, matricule, téléphone, plaque ou code-barres",
+                            font=(theme.FONT_FAMILY, 9), justify="left", anchor="w",
+                            bg=theme.Colors.BG_SECONDARY, fg=theme.Colors.TEXT_SECONDARY)
+        search_help.pack(fill="x", pady=(0, 6))
+        search_frame.bind("<Configure>", lambda event: search_help.config(wraplength=max(100, event.width)))
         
         self.search_var = StringVar()
         search_entry = ttk.Entry(
             search_frame,
             textvariable=self.search_var,
             font=(theme.FONT_FAMILY, 11),
+            width=1,
             style="Modern.TEntry"
         )
         search_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         search_entry.bind("<Return>", lambda event: self.rechercher())
-        
-        ttk.Button(
-            search_frame,
-            text="Rechercher",
-            command=self.rechercher,
-            style="Primary.TButton"
-        ).pack(side="right")
+        search_entry.bind("<Escape>", lambda event: self.effacer_recherche())
+
+        self.action_buttons = []
+        for icon, label, command, color in (
+            ("search", "Rechercher", self.rechercher, theme.Colors.PRIMARY),
+            ("add", "Ajouter une moto", self.add_owner, theme.Colors.SUCCESS),
+            ("edit", "Modifier", self.update_owner, theme.Colors.PRIMARY),
+            ("delete", "Supprimer", self.supprimer, theme.Colors.ERROR),
+            ("export", "Exporter", self.exporter, theme.Colors.PRIMARY),
+        ):
+            button = IconButton(search_frame, icon=icon, label=label, command=command, color=color)
+            button.pack(side="left", padx=(4, 0))
+            self.action_buttons.append(button)
+        results_bar = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
+        results_bar.pack(side="bottom", fill="x", pady=(8, 0))
+        self.results_var = StringVar(self, value="")
+        Label(results_bar, textvariable=self.results_var, font=(theme.FONT_FAMILY, 9),
+              bg=theme.Colors.BG_SECONDARY, fg=theme.Colors.TEXT_SECONDARY).pack(side="left")
+        ttk.Button(results_bar, text="Tout afficher", command=self.effacer_recherche,
+                   style="Secondary.TButton", cursor="hand2").pack(side="right")
         
         # Tableau
         tree_frame = Frame(left_frame, bg=theme.Colors.BG_SECONDARY)
@@ -157,7 +141,7 @@ class OwnersView(Frame):
               bg=theme.Colors.BG_SECONDARY, fg=theme.Colors.TEXT_PRIMARY).pack(anchor="w", pady=(0, 8))
         img_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY,
                           highlightbackground=theme.Colors.BORDER, highlightthickness=1)
-        img_frame.pack(pady=10)
+        img_frame.pack(pady=(0, 10))
         
         try:
             if paths.PROFIL_PATH.exists():
@@ -179,12 +163,13 @@ class OwnersView(Frame):
         self.lb_img.pack(padx=10, pady=10)
         
         # Bouton changer photo
-        ttk.Button(
+        self.change_photo_btn = ttk.Button(
             right_frame,
             text="Changer la photo",
             command=self.change_photo,
             style="Secondary.TButton"
-        ).pack(pady=5)
+        )
+        self.change_photo_btn.pack(pady=5)
         
         # Zone de texte pour les détails
         self.zone_text = Text(
@@ -203,11 +188,22 @@ class OwnersView(Frame):
         self.zone_text.pack(fill="both", expand=True, pady=10)
         self.zone_text.insert("end", "Sélectionnez une moto dans le tableau pour consulter sa fiche.")
         self.zone_text.config(state="disabled")
+        self.update_permissions()
+
+    def update_permissions(self):
+        controls = zip(self.action_buttons[1:] + [self.change_photo_btn],
+                       ("edit_owners", "edit_owners", "manage_owners", "manage_owners", "edit_owners"))
+        for button, permission in controls:
+            allowed = has_permission(permission)
+            button.state(["!disabled"] if allowed else ["disabled"])
+            button.config(cursor="hand2" if allowed else "arrow", takefocus=allowed)
     
+    @requires_permission("view_owners")
     def afficher_owners(self):
         """Affiche les usagers dans le tableau"""
         db = Bdonnee()
         owners = db.recuperer(2)
+        self.results_var.set(f"{len(owners)} usager(s)")
         
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -224,6 +220,7 @@ class OwnersView(Frame):
                 owner['statut']
             ))
     
+    @requires_permission("view_owners")
     def on_select(self, event):
         """Gère la sélection d'une ligne"""
         selected = self.tree.selection()
@@ -280,10 +277,12 @@ class OwnersView(Frame):
             except:
                 pass
     
+    @requires_permission("edit_owners")
     def add_owner(self):
         """Affiche le formulaire d'ajout"""
         self._show_owner_form()
     
+    @requires_permission("edit_owners")
     def update_owner(self):
         """Affiche le formulaire de modification"""
         selected = self.tree.selection()
@@ -293,6 +292,7 @@ class OwnersView(Frame):
         item_id = int(selected[0])
         self._show_owner_form(item_id)
     
+    @requires_permission("manage_owners")
     def supprimer(self):
         """Supprime un usager"""
         selected = self.tree.selection()
@@ -312,19 +312,57 @@ class OwnersView(Frame):
             else:
                 messagebox.showerror("Erreur", "Erreur lors de la suppression.")
     
+    @requires_permission("view_owners")
     def rechercher(self):
         """Recherche un usager"""
+        self._cancel_search()
+        self._search_generation += 1
+        generation = self._search_generation
         valeur = self.search_var.get().strip()
-        if not valeur:
-            self.afficher_owners()
+        self.results_var.set("Recherche…")
+        self._search_future = self._search_executor.submit(self._load_search, valeur)
+        self._search_poll = self.after(30, self._poll_search, generation)
+
+    @staticmethod
+    def _load_search(value):
+        if not has_permission("view_owners"):
+            return [], "Accès refusé."
+        try:
+            db = Bdonnee()
+            owners = db.rechercher_owner(value, notify=False)
+            return owners, db.last_error
+        except Exception as error:
+            return [], str(error)
+
+    def _schedule_search(self, *args):
+        self._cancel_search()
+        self._search_generation += 1
+        self._search_job = self.after(350, self.rechercher)
+
+    def _cancel_search(self):
+        for name in ("_search_job", "_search_poll"):
+            job = getattr(self, name)
+            if job is not None:
+                self.after_cancel(job)
+                setattr(self, name, None)
+        if self._search_future is not None:
+            self._search_future.cancel()
+
+    def _poll_search(self, generation):
+        self._search_poll = None
+        if generation != self._search_generation:
             return
-        
-        db = Bdonnee()
-        owners = db.rechercher_owner(valeur)
-        
-        if not owners:
-            messagebox.showinfo("Info", "Aucun usager trouvé.")
+        if not self._search_future.done():
+            self._search_poll = self.after(30, self._poll_search, generation)
             return
+        owners, error = self._search_future.result()
+        self._render_search_results(owners, error)
+
+    @requires_permission("view_owners")
+    def _render_search_results(self, owners, error=""):
+        self.results_var.set(f"{len(owners)} résultat(s)" if owners else "Aucun résultat")
+        if error:
+            self.results_var.set("Recherche indisponible. Réessayez.")
         
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -340,7 +378,17 @@ class OwnersView(Frame):
                 owner['couleur'],
                 owner['statut']
             ))
+
+    def effacer_recherche(self):
+        self.search_var.set("")
+        self.rechercher()
+
+    def destroy(self):
+        self._cancel_search()
+        self._search_executor.shutdown(wait=False, cancel_futures=True)
+        super().destroy()
     
+    @requires_permission("edit_owners")
     def change_photo(self):
         """Change la photo d'un usager"""
         selected = self.tree.selection()
@@ -353,6 +401,7 @@ class OwnersView(Frame):
         capture_with_preview(code)
         self.on_select(None)
     
+    @requires_permission("manage_owners")
     def exporter(self):
         """Exporte les données en HTML"""
         db = Bdonnee()
@@ -420,20 +469,12 @@ class OwnersView(Frame):
 """
         return html
     
+    @requires_permission("edit_owners")
     def _show_owner_form(self, owner_id=None):
         """Affiche le formulaire d'ajout/modification"""
         dialog = Toplevel(self)
         dialog.title("Ajouter un Usager" if not owner_id else "Modifier un Usager")
-        dialog.geometry("600x700")
-        dialog.config(bg=theme.Colors.BG_SECONDARY)
-        dialog.grab_set()
-        dialog.resizable(True, True)
-        
-        # Centrer la fenêtre
-        dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (600 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (700 // 2)
-        dialog.geometry(f"600x700+{x}+{y}")
+        configure_dialog(dialog, self)
         
         # Récupérer les données si modification
         owner_data = None
@@ -458,29 +499,35 @@ class OwnersView(Frame):
         # Valeurs par défaut
         if owner_data:
             for field_name, field_config in fields_config.items():
-                if field_name in owner_data:
-                    field_config["default"] = str(owner_data[field_name])
+                data_key = "immatriculation" if field_name == "plaque" else field_name
+                if data_key in owner_data:
+                    field_config["default"] = owner_data[data_key]
         
         # Créer le formulaire
         from app.components.modern_form import ModernForm
         form = ModernForm(
             dialog,
-            "Formulaire Usager",
+            "Modifier un usager" if owner_id else "Ajouter un usager",
             fields_config,
             "Enregistrer",
             lambda values: self._save_owner(values, owner_id, dialog)
         )
     
+    @requires_permission("edit_owners")
     def _save_owner(self, values, owner_id, dialog):
         """Sauvegarde un usager"""
         # Validation
         required_fields = ["nom", "prenom", "telephone", "plaque", "code_barre", "couleur", "statut"]
         for field in required_fields:
-            if not values.get(field):
-                messagebox.showerror("Erreur", f"Le champ {field} est obligatoire.")
+            if not str(values.get(field, "")).strip():
+                report_form_error(dialog, "Vérifiez les champs signalés.", {field: "Ce champ est obligatoire."})
                 return
         
-        db = Bdonnee()
+        try:
+            db = Bdonnee()
+        except Exception as error:
+            report_form_error(dialog, f"Enregistrement impossible : {error}")
+            return
         code_barre = convertir_caracteres_en_chiffres(values["code_barre"])
         
         if owner_id:
@@ -498,22 +545,22 @@ class OwnersView(Frame):
             }
             
             # Vérifier l'existence
-            test, sms = db.verifier_existence(code_barre, values["plaque"])
+            test, sms = db.verifier_existence(code_barre, values["plaque"], exclude_id=owner_id)
             if test:
-                messagebox.showerror("Attention", sms)
+                self._report_owner_conflict(dialog, sms)
                 return
             
-            if db.modifier(2, owner_id, nouvelles_valeurs):
+            if db.modifier(2, owner_id, nouvelles_valeurs, notify=False):
                 messagebox.showinfo("Succès", "Usager modifié avec succès.")
                 dialog.destroy()
                 self.afficher_owners()
             else:
-                messagebox.showerror("Erreur", "Erreur lors de la modification.")
+                self._report_owner_conflict(dialog, db.last_error or "Modification impossible. Réessayez.")
         else:
             # Ajout
             test, sms = db.verifier_existence(code_barre, values["plaque"])
             if test:
-                messagebox.showerror("Attention", sms)
+                self._report_owner_conflict(dialog, sms)
                 return
             
             if db.ajouter(2, [
@@ -526,9 +573,19 @@ class OwnersView(Frame):
                 code_barre,
                 values["couleur"],
                 values["statut"]
-            ]):
+            ], notify=False):
                 messagebox.showinfo("Succès", "Usager ajouté avec succès.")
                 dialog.destroy()
                 self.afficher_owners()
             else:
-                messagebox.showerror("Erreur", "Erreur lors de l'ajout.")
+                self._report_owner_conflict(dialog, db.last_error or "Enregistrement impossible. Réessayez.")
+
+    @staticmethod
+    def _report_owner_conflict(dialog, message):
+        lower = message.lower()
+        errors = {}
+        if "code-barre" in lower or "code_barre" in lower:
+            errors["code_barre"] = "Ce code-barres appartient déjà à un autre usager."
+        if "immatriculation" in lower:
+            errors["plaque"] = "Cette plaque appartient déjà à un autre usager."
+        report_form_error(dialog, "Vérifiez les champs signalés." if errors else message, errors)

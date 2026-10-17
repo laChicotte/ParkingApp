@@ -6,6 +6,7 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 from app.database import Bdonnee
 from app.config import theme, paths
+from app.config.permissions import has_permission, requires_permission
 
 
 class HistoriqueView(Frame):
@@ -14,33 +15,13 @@ class HistoriqueView(Frame):
     def __init__(self, parent, main_window):
         super().__init__(parent, bg=theme.Colors.BG_SECONDARY)
         self.main_window = main_window
+        if not has_permission("view_history"):
+            return
         self.setup_ui()
         self.afficher_historique()
     
     def setup_ui(self):
         """Configure l'interface"""
-        # Titre et barre d'outils
-        header_frame = Frame(self, bg=theme.Colors.BG_SECONDARY)
-        header_frame.pack(fill="x", padx=20, pady=10)
-        
-        title = Label(
-            header_frame,
-            text="Historique des mouvements",
-            font=(theme.FONT_FAMILY, 24, "bold"),
-            bg=theme.Colors.BG_SECONDARY,
-            fg=theme.Colors.PRIMARY
-        )
-        title.pack(side="left")
-        
-        # Bouton actualiser
-        refresh_btn = ttk.Button(
-            header_frame,
-            text="Actualiser",
-            command=self.afficher_historique,
-            style="Primary.TButton"
-        )
-        refresh_btn.pack(side="right", padx=10)
-        
         # Frame principal avec tableau et détails
         main_content = Frame(self, bg=theme.Colors.BG_SECONDARY)
         main_content.pack(fill="both", expand=True, padx=20, pady=10)
@@ -109,7 +90,7 @@ class HistoriqueView(Frame):
         # Image
         img_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY,
                           highlightbackground=theme.Colors.BORDER, highlightthickness=1)
-        img_frame.pack(pady=10)
+        img_frame.pack(pady=(0, 10))
         
         try:
             if paths.PROFIL_PATH.exists():
@@ -157,6 +138,7 @@ class HistoriqueView(Frame):
         self.zone_text.insert("end", "Sélectionnez une ligne pour voir les détails")
         self.zone_text.config(state="disabled")
     
+    @requires_permission("view_history")
     def afficher_historique(self):
         """Affiche l'historique dans le tableau"""
         db = Bdonnee()
@@ -180,6 +162,7 @@ class HistoriqueView(Frame):
                 ligne['heure']
             ))
     
+    @requires_permission("view_history")
     def on_select(self, event):
         """Gère la sélection d'une ligne"""
         selected = self.tree.selection()

@@ -10,16 +10,16 @@ class User:
     """
     # Définition des rôles et leurs permissions
     ROLES = {
-        0: "Utilisateur",  # Utilisateur normal
+        0: "Agent de parking",
         1: "Administrateur",  # Administrateur
         2: "Super Admin"  # Super administrateur
     }
 
     # Définition des permissions par rôle
     PERMISSIONS = {
-        0: ["view_entries", "view_exits", "scan_entries", "scan_exits"],  # Permissions utilisateur
-        1: ["view_entries", "view_exits", "scan_entries", "scan_exits", "manage_users", "view_dashboard", "manage_owners"],  # Permissions admin
-        2: ["view_entries", "view_exits", "scan_entries", "scan_exits", "manage_users", "view_dashboard", "manage_owners", "manage_admins"]  # Permissions super admin
+        0: ["view_entries", "view_exits", "scan_entries", "scan_exits", "view_owners", "view_history", "view_dashboard", "edit_owners"],
+        1: ["view_entries", "view_exits", "scan_entries", "scan_exits", "view_owners", "view_history", "edit_owners", "manage_users", "view_dashboard", "manage_owners"],
+        2: ["view_entries", "view_exits", "scan_entries", "scan_exits", "view_owners", "view_history", "edit_owners", "manage_users", "view_dashboard", "manage_owners", "manage_admins"]
     }
 
     def __init__(self, user_id=0, username="Connexion", email="null", password="null", role=0):

@@ -6,7 +6,10 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 from app.database import Bdonnee
 from app.config import theme, paths, settings
-from app.components.modern_form import ModernForm
+from app.config.permissions import has_permission, requires_permission
+from app.models.user import User
+from app.components.modern_form import ModernForm, configure_dialog, report_form_error, validate_email
+from app.components.icon_button import IconButton
 import bcrypt
 
 
@@ -16,49 +19,13 @@ class UserManagementView(Frame):
     def __init__(self, parent, main_window):
         super().__init__(parent, bg=theme.Colors.BG_SECONDARY)
         self.main_window = main_window
+        if not has_permission("manage_users"):
+            return
         self.setup_ui()
         self.load_users()
     
     def setup_ui(self):
         """Configure l'interface"""
-        # Titre et barre d'outils
-        header_frame = Frame(self, bg=theme.Colors.BG_SECONDARY)
-        header_frame.pack(fill="x", padx=20, pady=10)
-        
-        title = Label(
-            header_frame,
-            text="Comptes d’accès",
-            font=(theme.FONT_FAMILY, 24, "bold"),
-            bg=theme.Colors.BG_SECONDARY,
-            fg=theme.Colors.PRIMARY
-        )
-        title.pack(anchor="w")
-        
-        # Boutons d'action
-        actions_frame = Frame(self, bg=theme.Colors.BG_SECONDARY)
-        actions_frame.pack(fill="x", padx=15, pady=(8, 12))
-        
-        ttk.Button(
-            actions_frame,
-            text="Ajouter un utilisateur",
-            command=self.add_user,
-            style="Success.TButton"
-        ).pack(side="left", padx=5)
-        
-        ttk.Button(
-            actions_frame,
-            text="Modifier",
-            command=self.edit_user,
-            style="Primary.TButton"
-        ).pack(side="left", padx=5)
-        
-        ttk.Button(
-            actions_frame,
-            text="Supprimer",
-            command=self.delete_user,
-            style="Danger.TButton"
-        ).pack(side="left", padx=5)
-        
         # Frame principal
         main_content = Frame(self, bg=theme.Colors.BG_SECONDARY)
         main_content.pack(fill="both", expand=True, padx=20, pady=10)
@@ -113,11 +80,22 @@ class UserManagementView(Frame):
         right_frame = Frame(main_content, bg=theme.Colors.BG_SECONDARY, width=250)
         right_frame.grid(row=0, column=1, sticky="ns")
         right_frame.pack_propagate(False)
+        actions_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY)
+        actions_frame.pack(anchor="center", pady=(0, 12))
+        self.action_buttons = []
+        for icon, label, command, color in (
+            ("add", "Ajouter un utilisateur", self.add_user, theme.Colors.SUCCESS),
+            ("edit", "Modifier", self.edit_user, theme.Colors.PRIMARY),
+            ("delete", "Supprimer", self.delete_user, theme.Colors.ERROR),
+        ):
+            button = IconButton(actions_frame, icon=icon, label=label, command=command, color=color)
+            button.pack(side="left", padx=4)
+            self.action_buttons.append(button)
         
         # Image
         img_frame = Frame(right_frame, bg=theme.Colors.BG_SECONDARY,
                           highlightbackground=theme.Colors.BORDER, highlightthickness=1)
-        img_frame.pack(pady=20)
+        img_frame.pack(pady=(0, 12))
         
         try:
             if paths.PROFIL_PATH.exists():
@@ -137,7 +115,15 @@ class UserManagementView(Frame):
                 height=10
             )
         self.image_label.pack(padx=10, pady=10)
+        self.update_permissions()
+
+    def update_permissions(self):
+        allowed = has_permission("manage_users")
+        for button in self.action_buttons:
+            button.state(["!disabled"] if allowed else ["disabled"])
+            button.config(cursor="hand2" if allowed else "arrow", takefocus=allowed)
     
+    @requires_permission("manage_users")
     def load_users(self):
         """Charge les utilisateurs dans le tableau"""
         db = Bdonnee()
@@ -147,7 +133,7 @@ class UserManagementView(Frame):
             self.tree.delete(item)
         
         for user in users:
-            role_name = "Administrateur" if user['role'] == 1 else "Utilisateur"
+            role_name = User.ROLES.get(user['role'], "Rôle inconnu")
             self.tree.insert("", "end", iid=user['id'], values=(
                 user['username'],
                 user['nom'],
@@ -195,10 +181,12 @@ class UserManagementView(Frame):
             except:
                 pass
     
+    @requires_permission("manage_users")
     def add_user(self):
         """Affiche le formulaire d'ajout"""
         self._show_user_form()
     
+    @requires_permission("manage_users")
     def edit_user(self):
         """Affiche le formulaire de modification"""
         selected = self.tree.selection()
@@ -214,6 +202,7 @@ class UserManagementView(Frame):
         if user_data:
             self._show_user_form(user_data)
     
+    @requires_permission("manage_users")
     def delete_user(self):
         """Supprime un utilisateur"""
         selected = self.tree.selection()
@@ -233,30 +222,22 @@ class UserManagementView(Frame):
             else:
                 messagebox.showerror("Erreur", "Erreur lors de la suppression.")
     
+    @requires_permission("manage_users")
     def _show_user_form(self, user_data=None):
         """Affiche le formulaire utilisateur"""
         dialog = Toplevel(self)
         dialog.title("Ajouter un utilisateur" if not user_data else "Modifier un utilisateur")
-        dialog.geometry("600x700")
-        dialog.config(bg=theme.Colors.BG_SECONDARY)
-        dialog.grab_set()
-        dialog.resizable(True, True)
-        
-        # Centrer
-        dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (600 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (700 // 2)
-        dialog.geometry(f"600x700+{x}+{y}")
+        configure_dialog(dialog, self)
         
         # Configuration des champs
         fields_config = {
-            "username": {"label": "Nom d'utilisateur", "type": "entry"},
-            "nom": {"label": "Nom", "type": "entry"},
-            "prenom": {"label": "Prénom", "type": "entry"},
-            "telephone": {"label": "Téléphone", "type": "entry"},
-            "email": {"label": "Email", "type": "entry"},
-            "password": {"label": "Mot de passe", "type": "password"},
-            "role": {"label": "Rôle", "type": "option", "options": ["Utilisateur", "Administrateur"]}
+            "username": {"label": "Nom d'utilisateur *", "type": "entry"},
+            "nom": {"label": "Nom *", "type": "entry"},
+            "prenom": {"label": "Prénom *", "type": "entry"},
+            "telephone": {"label": "Téléphone *", "type": "entry"},
+            "email": {"label": "Email *", "type": "entry", "validator": validate_email},
+            "password": {"label": "Mot de passe *", "type": "password"},
+            "role": {"label": "Rôle", "type": "option", "options": ["Agent de parking", "Administrateur"]}
         }
         
         # Valeurs par défaut
@@ -268,7 +249,7 @@ class UserManagementView(Frame):
                 "prenom": user_data.get('prenom', ''),
                 "telephone": user_data.get('telephone', ''),
                 "email": user_data.get('email', ''),
-                "role": "Administrateur" if user_data.get('role') == 1 else "Utilisateur"
+                "role": "Administrateur" if user_data.get('role') == 1 else "Agent de parking"
             }
             # Ne pas pré-remplir le mot de passe
             fields_config.pop("password", None)
@@ -280,23 +261,28 @@ class UserManagementView(Frame):
         # Créer le formulaire
         form = ModernForm(
             dialog,
-            "Formulaire Utilisateur",
+            "Modifier un compte" if user_data else "Créer un compte",
             fields_config,
             "Enregistrer",
             lambda values: self._save_user(values, user_data['id'] if user_data else None, dialog)
         )
     
+    @requires_permission("manage_users")
     def _save_user(self, values, user_id, dialog):
         """Sauvegarde un utilisateur"""
         # Validation
         required_fields = ["username", "nom", "prenom", "telephone", "email"]
         for field in required_fields:
-            if not values.get(field):
-                messagebox.showerror("Erreur", f"Le champ {field} est obligatoire.")
+            if not str(values.get(field, "")).strip():
+                report_form_error(dialog, "Vérifiez les champs signalés.", {field: "Ce champ est obligatoire."})
                 return
         
-        db = Bdonnee()
-        roles = {"Utilisateur": 0, "Administrateur": 1}
+        try:
+            db = Bdonnee()
+        except Exception as error:
+            report_form_error(dialog, f"Enregistrement impossible : {error}")
+            return
+        roles = {"Agent de parking": 0, "Utilisateur": 0, "Administrateur": 1}
         
         if user_id:
             # Modification
@@ -306,21 +292,24 @@ class UserManagementView(Frame):
                 "prenom": values["prenom"],
                 "telephone": values["telephone"],
                 "email": values["email"],
-                "role": roles[values.get("role", "Utilisateur")]
+                "role": roles[values.get("role", "Agent de parking")]
             }
             
-            if db.modifier(1, user_id, nouvelles_valeurs):
+            if db.modifier(1, user_id, nouvelles_valeurs, notify=False):
                 messagebox.showinfo("Succès", "Utilisateur modifié avec succès.")
                 dialog.destroy()
                 self.load_users()
             else:
-                messagebox.showerror("Erreur", "Erreur lors de la modification.")
+                self._report_user_error(dialog, db.last_error or "Modification impossible. Réessayez.")
         else:
             # Ajout
             if not values.get("password"):
-                messagebox.showerror("Erreur", "Le mot de passe est obligatoire.")
+                report_form_error(dialog, "Vérifiez les champs signalés.", {"password": "Ce champ est obligatoire."})
                 return
             
+            if len(values["password"].encode('utf-8')) > 72:
+                report_form_error(dialog, "Vérifiez les champs signalés.", {"password": "Le mot de passe dépasse la taille maximale de 72 octets."})
+                return
             password_hash = bcrypt.hashpw(values["password"].encode('utf-8'), bcrypt.gensalt())
             
             if db.ajouter(1, [
@@ -330,10 +319,15 @@ class UserManagementView(Frame):
                 values["telephone"],
                 values["email"],
                 password_hash,
-                roles[values.get("role", "Utilisateur")]
-            ]):
+                roles[values.get("role", "Agent de parking")]
+            ], notify=False):
                 messagebox.showinfo("Succès", "Utilisateur ajouté avec succès.")
                 dialog.destroy()
                 self.load_users()
             else:
-                messagebox.showerror("Erreur", "Erreur lors de l'ajout.")
+                self._report_user_error(dialog, db.last_error or "Enregistrement impossible. Réessayez.")
+
+    @staticmethod
+    def _report_user_error(dialog, message):
+        errors = {"email": "Cette adresse email est déjà utilisée."} if "duplicate" in message.lower() and "email" in message.lower() else {}
+        report_form_error(dialog, "Vérifiez les champs signalés." if errors else message, errors)

@@ -7,6 +7,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from app.components.dashboard_charts import movement_figure, category_figure
 from app.config import theme
+from app.config.permissions import has_permission, requires_permission
 from app.database import Bdonnee
 
 
@@ -17,13 +18,19 @@ class DashboardView(Frame):
         self.period = StringVar(value="15 jours")
         self.charts = []
         self._stacked = None
+        self._scroll_job = None
+        self._scroll_target = None
+        self._wheel_bindings = []
+        if not has_permission("view_dashboard"):
+            return
         self.setup_ui()
         self.refresh()
 
     def setup_ui(self):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
-        self.scroll = Canvas(self, bg=theme.Colors.BG_SECONDARY, highlightthickness=0)
+        self.scroll = Canvas(self, bg=theme.Colors.BG_SECONDARY, highlightthickness=0,
+                             yscrollincrement=1)
         self.scroll.grid(row=0, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.scroll.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
@@ -32,14 +39,6 @@ class DashboardView(Frame):
         window = self.scroll.create_window(0, 0, window=page, anchor="nw")
         page.bind("<Configure>", lambda event: self.scroll.configure(scrollregion=self.scroll.bbox("all")))
         self.scroll.bind("<Configure>", lambda event: self.scroll.itemconfigure(window, width=event.width))
-
-        header = Frame(page, bg=theme.Colors.BG_SECONDARY)
-        header.pack(fill="x", padx=16, pady=(10, 18))
-        Label(header, text="Tableau de bord", font=(theme.FONT_FAMILY, 24, "bold"),
-              bg=theme.Colors.BG_SECONDARY, fg=theme.Colors.PRIMARY).pack(anchor="w")
-        Label(header, text="L’activité du parking de l’UKAG et sa communauté universitaire.",
-              font=(theme.FONT_FAMILY, 11), bg=theme.Colors.BG_SECONDARY,
-              fg=theme.Colors.TEXT_SECONDARY).pack(anchor="w", pady=(4, 0))
 
         self.metric_labels = []
         metrics = Frame(page, bg=theme.Colors.BG_SECONDARY)
@@ -90,6 +89,46 @@ class DashboardView(Frame):
         self.updated = Label(page, font=(theme.FONT_FAMILY, 9), bg=theme.Colors.BG_SECONDARY,
                              fg=theme.Colors.TEXT_SECONDARY)
         self.updated.pack(anchor="w", padx=16, pady=(0, 14))
+        # Le tag de la fenêtre reçoit aussi les événements des enfants,
+        # notamment ceux des canevas Matplotlib recréés à chaque actualisation.
+        for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            binding = self.winfo_toplevel().bind(sequence, self._on_mousewheel, add="+")
+            self._wheel_bindings.append((sequence, binding))
+
+    def _on_mousewheel(self, event):
+        widget_path = str(event.widget)
+        if widget_path != str(self) and not widget_path.startswith(str(self) + "."):
+            return
+        if event.state & 0x0001:  # Laisser les gestes horizontaux à leur contrôle.
+            return
+        if isinstance(event.widget, ttk.Combobox):
+            return
+        number = getattr(event, "num", None)
+        pixels = -48 if number == 4 else 48 if number == 5 else -event.delta * 48 / 120
+        bounds = self.scroll.bbox("all")
+        if not bounds or bounds[3] <= self.scroll.winfo_height():
+            return
+        current = self.scroll.canvasy(0)
+        # Repartir de la position réelle après une manipulation de la barre.
+        origin = current if self._scroll_job is None else self._scroll_target
+        maximum = max(0, bounds[3] - self.scroll.winfo_height())
+        self._scroll_target = max(0, min(maximum, origin + pixels))
+        if self._scroll_job is None:
+            self._animate_scroll()
+        return "break"
+
+    def _animate_scroll(self):
+        bounds = self.scroll.bbox("all")
+        maximum = max(0, bounds[3] - self.scroll.winfo_height()) if bounds else 0
+        self._scroll_target = max(0, min(maximum, self._scroll_target))
+        current = self.scroll.canvasy(0)
+        distance = self._scroll_target - current
+        if abs(distance) < 1:
+            self._scroll_job = None
+            return
+        step = round(distance * 0.35)
+        self.scroll.yview_scroll(step or (1 if distance > 0 else -1), "units")
+        self._scroll_job = self.after(16, self._animate_scroll)
 
     def _panel(self, title):
         panel = Frame(self.panels, bg=theme.Colors.BG_SECONDARY,
@@ -116,6 +155,7 @@ class DashboardView(Frame):
         self.category_panel.grid(row=1 if stacked else 0, column=0 if stacked else 1,
                                  sticky="nsew", padx=(0 if stacked else 8, 0), pady=(12 if stacked else 0, 0))
 
+    @requires_permission("view_dashboard")
     def refresh(self):
         try:
             database = Bdonnee()
@@ -156,5 +196,9 @@ class DashboardView(Frame):
         self.charts.clear()
 
     def destroy(self):
+        if self._scroll_job is not None:
+            self.after_cancel(self._scroll_job)
+        for sequence, binding in self._wheel_bindings:
+            self.winfo_toplevel().unbind(sequence, binding)
         self._clear_charts()
         super().destroy()

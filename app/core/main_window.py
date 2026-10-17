@@ -4,6 +4,8 @@ Fenêtre principale de l'application avec navigation par onglets
 from tkinter import Tk, Frame, Menu, Button, Label
 from tkinter import ttk
 from app.config import settings, theme, paths, branding
+from app.utils.fonctions import today
+from app.config.permissions import has_permission
 from app.views.accueil_view import AccueilView
 from app.views.dashboard_view import DashboardView
 from app.views.historique_view import HistoriqueView
@@ -39,6 +41,8 @@ class MainWindow:
         # Variables - synchronisées avec settings
         self.current_user = settings.current_user
         self.is_connected = settings.is_connected
+        self._notification_frame = None
+        self._notification_job = None
         
         # Configuration du style
         self.style = theme.Theme.configure_style(self.root)
@@ -50,6 +54,7 @@ class MainWindow:
         
         # Afficher la vue d'accueil par défaut
         self.show_accueil()
+        self.refresh_permissions()
     
     def _create_menu(self):
         """Crée la barre de menu"""
@@ -59,12 +64,11 @@ class MainWindow:
         # Menu Fichier
         file_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Fichier", menu=file_menu)
-        file_menu.add_command(label="Configurer MySQL / XAMPP", command=self._configure_database)
-        file_menu.add_separator()
         file_menu.add_command(label="Quitter", command=self._on_closing)
         
         # Menu Navigation
         nav_menu = Menu(menubar, tearoff=0)
+        self.nav_menu = nav_menu
         menubar.add_cascade(label="Navigation", menu=nav_menu)
         nav_menu.add_command(label="Accueil", command=self.show_accueil)
         nav_menu.add_command(label="Tableau de bord", command=self.show_dashboard)
@@ -79,13 +83,6 @@ class MainWindow:
         help_menu.add_separator()
         help_menu.add_command(label="À propos", command=self._show_about)
     
-    def _configure_database(self):
-        from app.config.installation import configure_database
-        from tkinter import messagebox
-        if configure_database(self.root):
-            messagebox.showinfo("Configuration enregistrée", "Relancez UKAG Parking pour utiliser cette connexion.", parent=self.root)
-            self.root.destroy()
-
     def _create_main_container(self):
         """Crée le conteneur principal avec navigation"""
         # Frame principal
@@ -98,23 +95,22 @@ class MainWindow:
         nav_frame.pack_propagate(False)
         
         # Titre de navigation
+        high_scaling = float(self.root.tk.call("tk", "scaling")) >= 1.8
+        self.nav_font_size = 10 if high_scaling else 11
         self.sidebar_logo = branding.load_logo(nav_frame, (84, 84))
         if self.sidebar_logo:
             logo_label = Label(nav_frame, image=self.sidebar_logo,
                                bg=theme.Colors.BG_SECONDARY, padx=5, pady=5)
-            logo_label.pack(anchor="w", padx=20, pady=(20, 0))
+            logo_label.pack(anchor="center", pady=(20, 0))
         title_label = ttk.Label(
             nav_frame,
             text=branding.APP_NAME,
             style="Title.TLabel",
             background=theme.Colors.BG_DARK,
             foreground=theme.Colors.TEXT_LIGHT,
-            font=(theme.FONT_FAMILY, 18, "bold")
+            font=(theme.FONT_FAMILY, 15 if high_scaling else 17, "bold")
         )
-        title_label.pack(anchor="w", padx=20, pady=(12, 4))
-        Label(nav_frame, text="Gestion du parking",
-              font=(theme.FONT_FAMILY, 10), bg=theme.Colors.BG_DARK,
-              fg="#bdcfd9").pack(anchor="w", padx=20, pady=(0, 28))
+        title_label.pack(anchor="center", pady=(12, 24))
         
         # Boutons de navigation avec style amélioré
         nav_buttons = [
@@ -126,34 +122,39 @@ class MainWindow:
         ]
         
         self.nav_buttons = []
+        self.nav_indicators = {}
         self.active_nav = None
         for text, command in nav_buttons:
             btn_frame = Frame(nav_frame, bg=theme.Colors.BG_DARK)
-            btn_frame.pack(pady=3, padx=10, fill="x")
+            btn_frame.pack(pady=4, padx=12, fill="x")
+            indicator = Frame(btn_frame, bg=theme.Colors.BG_DARK, width=3)
+            indicator.pack(side="left", fill="y")
             
             btn = Button(
                 btn_frame,
                 text=text,
                 command=command,
-                font=(theme.FONT_FAMILY, 11, "bold"),
+                font=(theme.FONT_FAMILY, self.nav_font_size),
                 bg=theme.Colors.BG_DARK,
                 fg=theme.Colors.TEXT_LIGHT,
                 activebackground=theme.Colors.NAV_HOVER,
                 activeforeground=theme.Colors.TEXT_LIGHT,
                 relief="flat",
                 bd=0,
-                highlightthickness=1,
+                highlightthickness=0,
                 highlightbackground=theme.Colors.BG_DARK,
                 highlightcolor=theme.Colors.ACCENT,
                 cursor="hand2",
-                padx=15,
-                pady=12,
+                padx=6,
+                pady=10,
                 anchor="w"
             )
-            btn.pack(fill="x")
-            btn.bind("<Enter>", lambda e, b=btn: b.config(bg=theme.Colors.NAV_HOVER))
-            btn.bind("<Leave>", lambda e, b=btn: b.config(
-                bg=theme.Colors.NAV_SELECTED if b.cget("text") == self.active_nav else theme.Colors.BG_DARK))
+            btn.pack(side="left", fill="x", expand=True)
+            self.nav_indicators[btn] = indicator
+            btn.bind("<Enter>", lambda e, b=btn: self._paint_navigation(b, hover=True))
+            btn.bind("<Leave>", lambda e, b=btn: self._paint_navigation(b))
+            btn.bind("<FocusIn>", lambda e, b=btn: self._paint_navigation(b, hover=True))
+            btn.bind("<FocusOut>", lambda e, b=btn: self._paint_navigation(b))
             self.nav_buttons.append(btn)
         
         # Bouton de connexion/déconnexion
@@ -164,7 +165,7 @@ class MainWindow:
             login_frame,
             text="Connexion",
             command=self._toggle_login,
-            font=(theme.FONT_FAMILY, 12, "bold"),
+            font=(theme.FONT_FAMILY, 11, "bold"),
             bg=theme.Colors.SUCCESS,
             fg=theme.Colors.TEXT_LIGHT,
             activebackground=theme.Colors.SUCCESS_HOVER,
@@ -172,7 +173,7 @@ class MainWindow:
             relief="flat",
             cursor="hand2",
             padx=15,
-            pady=12
+            pady=10
         )
         self.login_btn.pack(fill="x")
         self.login_btn.bind("<Enter>", lambda e: self.login_btn.config(bg=theme.Colors.SUCCESS_HOVER))
@@ -182,21 +183,40 @@ class MainWindow:
         content_shell = Frame(main_frame, bg=theme.Colors.BG_SECONDARY)
         content_shell.pack(side="right", fill="both", expand=True)
         university_header = Frame(content_shell, bg=theme.Colors.BG_SECONDARY)
+        self.university_header = university_header
         university_header.pack(fill="x", padx=24, pady=(16, 0))
         self.header_logo = branding.load_logo(university_header, (48, 48))
+        self.home_header_logo = branding.load_logo(university_header, (32, 32))
+        self.header_logo_label = None
         if self.header_logo:
-            Label(university_header, image=self.header_logo,
-                  bg=theme.Colors.BG_SECONDARY).pack(side="left", padx=(0, 12))
+            self.header_logo_label = Label(university_header, image=self.header_logo,
+                                           bg=theme.Colors.BG_SECONDARY)
+            self.header_logo_label.grid(row=0, column=0, padx=(0, 12), sticky="w")
         header_text = Frame(university_header, bg=theme.Colors.BG_SECONDARY)
-        header_text.pack(side="left", fill="x", expand=True)
-        Label(header_text, text=branding.UNIVERSITY_NAME,
-              font=(theme.FONT_FAMILY, 13, "bold"), bg=theme.Colors.BG_SECONDARY,
-              fg=theme.Colors.TEXT_PRIMARY).pack(anchor="w")
+        header_text.grid(row=0, column=1, sticky="w")
+        university_header.columnconfigure(2, weight=1)
+        self.university_name_label = Label(header_text, text=branding.UNIVERSITY_NAME,
+                                           font=(theme.FONT_FAMILY, 13, "bold"), bg=theme.Colors.BG_SECONDARY,
+                                           fg=theme.Colors.TEXT_PRIMARY)
+        self.university_name_label.pack(anchor="w")
         self.section_label = Label(header_text, text=branding.SERVICE_NAME,
                                    font=(theme.FONT_FAMILY, 10), bg=theme.Colors.BG_SECONDARY,
                                    fg=theme.Colors.TEXT_SECONDARY)
         self.section_label.pack(anchor="w", pady=(2, 0))
-        Frame(content_shell, bg=theme.Colors.BORDER, height=1).pack(fill="x", padx=24, pady=(12, 0))
+        self.home_title_label = Label(university_header, text="Entrées et sorties",
+                                      font=(theme.FONT_FAMILY, 16, "bold"),
+                                      bg=theme.Colors.BG_SECONDARY, fg=theme.Colors.PRIMARY)
+        self.home_date_label = Label(university_header, text=f"Le {today(1)}",
+                                     font=(theme.FONT_FAMILY, 12),
+                                     bg=theme.Colors.BG_SECONDARY, fg=theme.Colors.TEXT_SECONDARY)
+        self._home_header = False
+        self._header_section_title = None
+        self.section_title_label = Label(university_header,
+                                           font=(theme.FONT_FAMILY, 18, "bold"),
+                                           bg=theme.Colors.BG_SECONDARY, fg=theme.Colors.PRIMARY)
+        university_header.bind("<Configure>", self._layout_home_header)
+        self.header_separator = Frame(content_shell, bg=theme.Colors.BORDER, height=1)
+        self.header_separator.pack(fill="x", padx=24, pady=(12, 0))
         self.content_frame = Frame(content_shell, bg=theme.Colors.BG_SECONDARY, relief="flat")
         self.content_frame.pack(fill="both", expand=True)
         
@@ -227,12 +247,54 @@ class MainWindow:
         )
         self.user_label.pack(side="right", padx=10, pady=5)
     
-    def _clear_content(self):
+    def _clear_content(self, compact_header=False, section_title=None):
         """Efface le contenu actuel"""
         if self.current_view_frame:
             self.current_view_frame.destroy()
+        self.root.minsize(1000 if compact_header else 1100, 600 if compact_header else 700)
+        self._home_header = compact_header
+        self._header_section_title = section_title
+        if section_title:
+            self.section_title_label.config(text=section_title)
+        self._layout_home_header()
+        self.university_header.pack_configure(pady=(8 if compact_header else 16, 0))
+        self.header_separator.pack_configure(pady=(8 if compact_header else 12, 0))
+        self.university_name_label.config(font=(theme.FONT_FAMILY, 12 if compact_header else 13, "bold"))
+        if self.header_logo_label:
+            self.header_logo_label.config(image=self.home_header_logo if compact_header else self.header_logo)
+        if compact_header or section_title:
+            self.section_label.pack_forget()
+        else:
+            self.section_label.pack(anchor="w", pady=(2, 0))
         self.current_view_frame = Frame(self.content_frame, bg=theme.Colors.BG_SECONDARY)
-        self.current_view_frame.pack(fill="both", expand=True, padx=16, pady=16)
+        self.current_view_frame.pack(fill="both", expand=True, padx=16, pady=12 if compact_header else 16)
+
+    def _layout_home_header(self, event=None):
+        """Titre et date dans l'en-tête, sur deux lignes si nécessaire."""
+        if self._header_section_title:
+            self.home_title_label.grid_remove()
+            self.home_date_label.grid_remove()
+            required = (self.university_name_label.winfo_reqwidth()
+                        + self.section_title_label.winfo_reqwidth() + 100)
+            self.section_title_label.grid(
+                row=0 if self.university_header.winfo_width() >= required else 1,
+                column=2, columnspan=2, sticky="e", padx=(16, 0))
+            return
+        self.section_title_label.grid_remove()
+        if not self._home_header:
+            self.home_title_label.grid_remove()
+            self.home_date_label.grid_remove()
+            return
+        self.home_date_label.config(text=f"Le {today(1)}")
+        required = (self.university_name_label.winfo_reqwidth()
+                    + self.home_title_label.winfo_reqwidth()
+                    + self.home_date_label.winfo_reqwidth() + 100)
+        if self.university_header.winfo_width() >= required:
+            self.home_date_label.grid(row=0, column=2, columnspan=1, padx=16, pady=0)
+            self.home_title_label.grid(row=0, column=3, columnspan=1, sticky="e", pady=0)
+        else:
+            self.home_date_label.grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.home_title_label.grid(row=1, column=2, columnspan=2, sticky="e", pady=(8, 0))
 
     def _select_navigation(self, label):
         """Indique la section ouverte, y compris après navigation par le menu."""
@@ -240,12 +302,42 @@ class MainWindow:
         self.section_label.config(text=f"{branding.SERVICE_NAME} / {label}")
         self.root.title(f"{branding.APP_NAME} — {label}")
         for button in self.nav_buttons:
-            selected = button.cget("text") == label
-            button.config(bg=theme.Colors.NAV_SELECTED if selected else theme.Colors.BG_DARK)
+            self._paint_navigation(button)
+
+    def _paint_navigation(self, button, hover=False):
+        if str(button.cget("state")) == "disabled":
+            button.config(bg=theme.Colors.BG_DARK, disabledforeground="#738a98", cursor="arrow")
+            self.nav_indicators[button].config(bg=theme.Colors.BG_DARK)
+            return
+        selected = button.cget("text") == self.active_nav
+        background = (theme.Colors.NAV_SELECTED if selected else
+                      theme.Colors.NAV_HOVER if hover else theme.Colors.BG_DARK)
+        button.config(bg=background, activebackground=theme.Colors.NAV_SELECTED,
+                      fg=theme.Colors.TEXT_LIGHT if selected or hover else "#c3d2da",
+                      font=(theme.FONT_FAMILY, self.nav_font_size, "bold" if selected else "normal"))
+        self.nav_indicators[button].config(bg="#73c5ce" if selected else background)
+
+    def refresh_permissions(self):
+        """Griser les actions interdites sans les retirer de la navigation."""
+        restrictions = {"Tableau de bord": "view_dashboard", "Comptes d'accès": "manage_users",
+                        "Historique": "view_history", "Usagers et motos": "view_owners"}
+        for button in self.nav_buttons:
+            label = button.cget("text")
+            allowed = label not in restrictions or has_permission(restrictions[label])
+            button.config(state="normal" if allowed else "disabled", takefocus=allowed,
+                          cursor="hand2" if allowed else "arrow")
+            self.nav_menu.entryconfigure(label, state="normal" if allowed else "disabled")
+            self._paint_navigation(button)
+        if self.active_nav in restrictions and not has_permission(restrictions[self.active_nav]):
+            self.show_accueil()
+        if self.current_view_frame:
+            for view in self.current_view_frame.winfo_children():
+                if hasattr(view, "update_permissions"):
+                    view.update_permissions()
     
     def show_accueil(self):
         """Affiche la vue d'accueil"""
-        self._clear_content()
+        self._clear_content(compact_header=True)
         view = AccueilView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
         self._update_status("Vue: Accueil")
@@ -255,7 +347,7 @@ class MainWindow:
         """Affiche le dashboard"""
         if not self._check_permission("view_dashboard"):
             return
-        self._clear_content()
+        self._clear_content(section_title="Tableau de bord")
         view = DashboardView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
         self._update_status("Vue: Tableau de bord")
@@ -263,7 +355,9 @@ class MainWindow:
     
     def show_historique(self):
         """Affiche l'historique"""
-        self._clear_content()
+        if not self._check_permission("view_history"):
+            return
+        self._clear_content(section_title="Historique des mouvements")
         view = HistoriqueView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
         self._update_status("Vue: Historique")
@@ -271,7 +365,9 @@ class MainWindow:
     
     def show_owners(self):
         """Affiche la gestion des motos"""
-        self._clear_content()
+        if not self._check_permission("view_owners"):
+            return
+        self._clear_content(section_title="Usagers et motos")
         view = OwnersView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
         self._update_status("Vue: Usagers et motos")
@@ -281,7 +377,7 @@ class MainWindow:
         """Affiche la gestion des utilisateurs"""
         if not self._check_permission("manage_users"):
             return
-        self._clear_content()
+        self._clear_content(section_title="Comptes d’accès")
         view = UserManagementView(self.current_view_frame, self)
         view.pack(fill="both", expand=True)
         self._update_status("Vue: Comptes d'accès")
@@ -302,6 +398,7 @@ class MainWindow:
     
     def _logout(self):
         """Déconnecte l'utilisateur"""
+        self._hide_notification()
         settings.logout()
         self.is_connected = settings.is_connected
         self.current_user = settings.current_user
@@ -311,6 +408,7 @@ class MainWindow:
         self.user_label.config(text="Non connecté")
         self._update_status("Déconnecté")
         self.show_accueil()
+        self.refresh_permissions()
     
     def _check_permission(self, permission):
         """Vérifie si l'utilisateur a la permission"""
@@ -434,6 +532,25 @@ class MainWindow:
     def _update_status(self, message):
         """Met à jour le message de statut"""
         self.status_label.config(text=message)
+
+    def show_notification(self, message, duration=3000):
+        """Confirmation non modale qui disparaît automatiquement."""
+        self._hide_notification()
+        self._notification_frame = Frame(self.root, bg=theme.Colors.SUCCESS, padx=16, pady=12)
+        Label(self._notification_frame, text=message, bg=theme.Colors.SUCCESS, fg="white",
+              font=(theme.FONT_FAMILY, 11, "bold"), justify="left",
+              wraplength=min(420, max(200, self.root.winfo_width() - 80))).pack()
+        self._notification_frame.place(relx=1, x=-24, y=70, anchor="ne")
+        self._notification_frame.lift()
+        self._notification_job = self.root.after(duration, self._hide_notification)
+
+    def _hide_notification(self):
+        if self._notification_job is not None:
+            self.root.after_cancel(self._notification_job)
+            self._notification_job = None
+        if self._notification_frame is not None:
+            self._notification_frame.destroy()
+            self._notification_frame = None
     
     def _on_closing(self):
         """Gère la fermeture de l'application"""
@@ -441,6 +558,7 @@ class MainWindow:
         
         # Demander confirmation
         if messagebox.askokcancel("Quitter", "Voulez-vous vraiment quitter l'application ?"):
+            self._hide_notification()
             # Nettoyage si nécessaire
             self._cleanup()
             # Fermer l'application
