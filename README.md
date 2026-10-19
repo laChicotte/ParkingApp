@@ -173,6 +173,7 @@ Les actions interdites restent grisées. Sans connexion, les listes privées ne 
 
 - L'application crée automatiquement les tables nécessaires dans la base de données
 - Les images sont stockées dans `resources/images/`
+- La suppression d'une fiche retire sa photo après validation SQL, sauf si une autre fiche l'utilise. Un changement de code-barres (ou de téléphone pour un compte) conserve la photo sous le nouvel identifiant. Une photo déjà présente au nouvel emplacement n'est pas écrasée. Les remplacements par capture sont écrits avant de remplacer l'ancien fichier.
 - Les icônes sont dans `resources/icons/`
 
 ## 🐛 Dépannage

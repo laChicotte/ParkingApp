@@ -161,6 +161,7 @@ class OwnersView(Frame):
                 height=10
             )
         self.lb_img.pack(padx=10, pady=10)
+        self._default_photo = getattr(self.lb_img, "image", None)
         
         # Bouton changer photo
         self.change_photo_btn = ttk.Button(
@@ -225,6 +226,7 @@ class OwnersView(Frame):
         """Gère la sélection d'une ligne"""
         selected = self.tree.selection()
         if not selected:
+            self._clear_owner_details()
             return
         
         item_id = selected[0]
@@ -307,7 +309,12 @@ class OwnersView(Frame):
         if messagebox.askyesno("Confirmation", f"Voulez-vous supprimer {nom_complet} ?"):
             db = Bdonnee()
             if db.supprimer(2, item_id):
-                messagebox.showinfo("Succès", "Usager supprimé avec succès.")
+                warning = getattr(db, "last_warning", "")
+                if isinstance(warning, str) and warning:
+                    messagebox.showwarning("Photo à vérifier", "Usager supprimé.\n" + warning)
+                else:
+                    messagebox.showinfo("Succès", "Usager supprimé avec succès.")
+                self._clear_owner_details()
                 self.afficher_owners()
             else:
                 messagebox.showerror("Erreur", "Erreur lors de la suppression.")
@@ -322,6 +329,14 @@ class OwnersView(Frame):
         self.results_var.set("Recherche…")
         self._search_future = self._search_executor.submit(self._load_search, valeur)
         self._search_poll = self.after(30, self._poll_search, generation)
+
+    def _clear_owner_details(self):
+        self.zone_text.config(state="normal")
+        self.zone_text.delete("1.0", "end")
+        self.zone_text.insert("end", "Sélectionnez une moto dans le tableau pour consulter sa fiche.")
+        self.zone_text.config(state="disabled")
+        self.lb_img.config(image=self._default_photo or "", text="" if self._default_photo else "Aucune image")
+        self.lb_img.image = self._default_photo
 
     @staticmethod
     def _load_search(value):
@@ -551,7 +566,11 @@ class OwnersView(Frame):
                 return
             
             if db.modifier(2, owner_id, nouvelles_valeurs, notify=False):
-                messagebox.showinfo("Succès", "Usager modifié avec succès.")
+                warning = getattr(db, "last_warning", "")
+                if isinstance(warning, str) and warning:
+                    messagebox.showwarning("Photo à vérifier", "Usager modifié.\n" + warning)
+                else:
+                    messagebox.showinfo("Succès", "Usager modifié avec succès.")
                 dialog.destroy()
                 self.afficher_owners()
             else:

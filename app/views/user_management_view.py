@@ -115,6 +115,7 @@ class UserManagementView(Frame):
                 height=10
             )
         self.image_label.pack(padx=10, pady=10)
+        self._default_photo = getattr(self.image_label, "image", None)
         self.update_permissions()
 
     def update_permissions(self):
@@ -147,6 +148,8 @@ class UserManagementView(Frame):
         """Gère la sélection d'un utilisateur"""
         selected = self.tree.selection()
         if not selected:
+            self.image_label.config(image=self._default_photo or "", text="" if self._default_photo else "Aucune image")
+            self.image_label.image = self._default_photo
             return
         
         user_data = self.tree.item(selected[0])["values"]
@@ -217,8 +220,13 @@ class UserManagementView(Frame):
         if messagebox.askyesno("Confirmation", f"Voulez-vous supprimer l'utilisateur {username} ?"):
             db = Bdonnee()
             if db.supprimer(1, user_id):
-                messagebox.showinfo("Succès", "Utilisateur supprimé avec succès.")
+                warning = getattr(db, "last_warning", "")
+                if isinstance(warning, str) and warning:
+                    messagebox.showwarning("Photo à vérifier", "Utilisateur supprimé.\n" + warning)
+                else:
+                    messagebox.showinfo("Succès", "Utilisateur supprimé avec succès.")
                 self.load_users()
+                self.on_select(None)
             else:
                 messagebox.showerror("Erreur", "Erreur lors de la suppression.")
     
@@ -296,7 +304,11 @@ class UserManagementView(Frame):
             }
             
             if db.modifier(1, user_id, nouvelles_valeurs, notify=False):
-                messagebox.showinfo("Succès", "Utilisateur modifié avec succès.")
+                warning = getattr(db, "last_warning", "")
+                if isinstance(warning, str) and warning:
+                    messagebox.showwarning("Photo à vérifier", "Utilisateur modifié.\n" + warning)
+                else:
+                    messagebox.showinfo("Succès", "Utilisateur modifié avec succès.")
                 dialog.destroy()
                 self.load_users()
             else:

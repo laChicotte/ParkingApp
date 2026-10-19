@@ -86,7 +86,15 @@ def capture_with_preview(image_name):
 
             # Enregistrer l'image
             # cv2.imwrite(file_path, frame)
-            cv2.imwrite(file_path, resized_frame)
+            from app.utils.photos import save_photo_atomic
+            try:
+                encoded, content = cv2.imencode('.png', resized_frame)
+                if not encoded:
+                    raise OSError("Impossible de préparer la nouvelle photo.")
+                save_photo_atomic(image_path, content.tobytes())
+            except (OSError, ValueError) as error:
+                messagebox.showerror("Photo non enregistrée", str(error))
+                break
             messagebox.showinfo("Succès", "DPhoto capturée et sauvegardée sous : {}".format(file_path))
             break
         elif key == ord('q') or key == ord('Q'):  # Appuyez sur 'Q' pour quitter

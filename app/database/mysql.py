@@ -3,6 +3,7 @@ import json
 from tkinter import messagebox
 from datetime import datetime, timedelta
 from app.config import paths
+from app.utils.photos import PhotoChange, photo_path
 
 class Bdonnee:
     def __init__(self):
@@ -35,6 +36,7 @@ class Bdonnee:
         except json.JSONDecodeError:
             raise ValueError(f"Configuration JSON invalide : {paths.CONFIG_FILE}") from None
         self.tables = ["historique", "users", "owners"]
+        self.last_warning = ""
         self._creer_tables()
 
     def _connecter(self):
@@ -71,6 +73,10 @@ class Bdonnee:
 
     def modifier(self, indice_table, row_id, nouvelles_valeurs, notify=True):
         self.last_error = ""
+        self.last_warning = ""
+        photo = None
+        connection = None
+        committed = False
         try:
             table_name = self.tables[indice_table]
             colonnes_str = ", ".join(f"{col} = %s" for col in nouvelles_valeurs.keys())
@@ -79,29 +85,96 @@ class Bdonnee:
             query = f"UPDATE {table_name} SET {colonnes_str} WHERE id = %s"
 
             with self._connecter() as conn:
+                connection = conn
+                conn.begin()
                 with conn.cursor() as cursor:
+                    key = "code_barre" if table_name == "owners" else "telephone" if table_name == "users" else None
+                    if key and key in nouvelles_valeurs:
+                        cursor.execute(f"SELECT {key} FROM {table_name} WHERE id = %s FOR UPDATE", (row_id,))
+                        row = cursor.fetchone()
+                        if row is None:
+                            raise ValueError("Cette fiche n'existe plus. Actualisez la liste.")
+                        photo = PhotoChange(photo_path(table_name, row[0]), photo_path(table_name, nouvelles_valeurs[key]))
+                        photo.prepare()
                     cursor.execute(query, (*valeurs, row_id))
+                    referenced = self._photo_referenced(cursor, photo.source) if photo and photo.source != photo.destination else False
                 conn.commit()
+                committed = True
+            self._finish_photo(photo, referenced)
             return True
-        except pymysql.MySQLError as e:
+        except (pymysql.MySQLError, OSError, ValueError) as e:
+            if committed:
+                self._finish_photo(photo, referenced)
+                self.last_warning = self.last_warning or f"La modification est enregistrée, mais la connexion s'est fermée avec une erreur : {e}"
+                return True
+            if connection is not None:
+                try:
+                    connection.rollback()
+                except pymysql.MySQLError:
+                    pass
+            if photo is not None:
+                try:
+                    photo.rollback()
+                except (OSError, ValueError):
+                    self.last_warning = "Une copie temporaire de photo n'a pas pu être supprimée."
             self.last_error = f"Erreur lors de la modification : {e}"
             if notify:
                 messagebox.showerror("Erreur", self.last_error)
             return False
 
     def supprimer(self, indice_table, row_id):
+        self.last_error = ""
+        self.last_warning = ""
+        committed = False
         try:
             table_name = self.tables[indice_table]
             query = f"DELETE FROM {table_name} WHERE id = %s"
 
             with self._connecter() as conn:
+                conn.begin()
                 with conn.cursor() as cursor:
+                    key = "code_barre" if table_name == "owners" else "telephone" if table_name == "users" else None
+                    photo = None
+                    if key:
+                        cursor.execute(f"SELECT {key} FROM {table_name} WHERE id = %s FOR UPDATE", (row_id,))
+                        row = cursor.fetchone()
+                        if row is None:
+                            raise ValueError("Cette fiche n'existe plus. Actualisez la liste.")
+                        photo = PhotoChange(photo_path(table_name, row[0]))
                     cursor.execute(query, (row_id,))
+                    referenced = self._photo_referenced(cursor, photo.source) if photo else False
                 conn.commit()
+                committed = True
+            self._finish_photo(photo, referenced)
             return True
-        except pymysql.MySQLError as e:
-            messagebox.showerror("Erreur", f"Erreur lors de la suppression : {e}")
+        except (pymysql.MySQLError, OSError, ValueError) as e:
+            if committed:
+                self._finish_photo(photo, referenced)
+                self.last_warning = self.last_warning or f"La suppression est enregistrée, mais la connexion s'est fermée avec une erreur : {e}"
+                return True
+            self.last_error = f"Erreur lors de la suppression : {e}"
+            messagebox.showerror("Erreur", self.last_error)
             return False
+
+    @staticmethod
+    def _photo_referenced(cursor, path):
+        if path is None:
+            return False
+        # Les comptes et les propriétaires peuvent partager le même nom de fichier.
+        cursor.execute("""SELECT 1 FROM owners
+                          WHERE (CASE WHEN CHAR_LENGTH(TRIM(code_barre)) < 6
+                                 THEN LPAD(TRIM(code_barre), 6, '0') ELSE TRIM(code_barre) END) = %s
+                          UNION ALL SELECT 1 FROM users WHERE TRIM(telephone) = %s LIMIT 1""",
+                       (path.stem, path.stem))
+        return cursor.fetchone() is not None
+
+    def _finish_photo(self, photo, referenced):
+        if photo is None:
+            return
+        try:
+            photo.finish(still_referenced=referenced)
+        except (OSError, ValueError) as error:
+            self.last_warning = f"La base est mise à jour, mais l'ancienne photo n'a pas pu être supprimée : {error}"
 
     def recuperer(self, indice_table):
         try:
